@@ -48,6 +48,7 @@ export async function POST(request) {
       name: name.toLowerCase(),
       visibility: visibility || "public",
       ownerId: session.user.id,
+      isSystemDomain: true,
       verificationStatus: "verified",
       verifiedAt: new Date(),
       dnsRecords: { mxVerified: true, txtVerified: true },

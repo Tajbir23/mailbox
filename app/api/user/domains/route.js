@@ -15,6 +15,7 @@ export async function GET() {
     await dbConnect();
     const domains = await Domain.find({
       ownerId: session.user.id,
+      isSystemDomain: { $ne: true },
     })
       .sort({ createdAt: -1 })
       .lean();
