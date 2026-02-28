@@ -76,6 +76,16 @@ export default function AdminDomainsPage() {
     fetchDomains();
   };
 
+  const handleVisibilityToggle = async (id, currentVisibility) => {
+    const newVisibility = currentVisibility === "public" ? "private" : "public";
+    await fetch("/api/admin/domains", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, visibility: newVisibility }),
+    });
+    fetchDomains();
+  };
+
   const handleDelete = async (id) => {
     if (!confirm("Delete this domain? Existing mailboxes will stop receiving emails."))
       return;
@@ -165,15 +175,17 @@ export default function AdminDomainsPage() {
                   {d.name}
                 </td>
                 <td className="px-6 py-4">
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
+                  <button
+                    onClick={() => handleVisibilityToggle(d._id, d.visibility)}
+                    title={`Click to make ${d.visibility === "public" ? "Private" : "Public"}`}
+                    className={`text-xs px-2 py-0.5 rounded-full cursor-pointer transition hover:opacity-80 ${
                       d.visibility === "public"
-                        ? "bg-indigo-100 text-indigo-700"
-                        : "bg-purple-100 text-purple-700"
+                        ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                        : "bg-purple-100 text-purple-700 hover:bg-purple-200"
                     }`}
                   >
                     {d.visibility === "public" ? "Public" : "Private"}
-                  </span>
+                  </button>
                 </td>
                 <td className="px-6 py-4 text-gray-500 text-xs">
                   {d.ownerId?.name || "—"}

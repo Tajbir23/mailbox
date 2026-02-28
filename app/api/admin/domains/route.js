@@ -83,7 +83,7 @@ export async function DELETE(request) {
   }
 }
 
-// PATCH /api/admin/domains – toggle active status
+// PATCH /api/admin/domains – toggle active status or visibility
 export async function PATCH(request) {
   try {
     const session = await getServerSession(authOptions);
@@ -92,9 +92,18 @@ export async function PATCH(request) {
     }
 
     await dbConnect();
-    const { id, isActive } = await request.json();
+    const body = await request.json();
+    const { id } = body;
 
-    const domain = await Domain.findByIdAndUpdate(id, { isActive }, { new: true });
+    const update = {};
+    if (typeof body.isActive === "boolean") update.isActive = body.isActive;
+    if (body.visibility === "public" || body.visibility === "private") update.visibility = body.visibility;
+
+    if (!id || Object.keys(update).length === 0) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+
+    const domain = await Domain.findByIdAndUpdate(id, update, { new: true });
     if (!domain) {
       return NextResponse.json({ error: "Domain not found" }, { status: 404 });
     }
