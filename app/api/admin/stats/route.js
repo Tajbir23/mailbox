@@ -106,8 +106,10 @@ export async function GET() {
         },
       ]),
 
-      // Storage estimation (email collection stats)
-      IncomingEmail.collection.stats().catch(() => null),
+      // Storage estimation (email collection stats via aggregation)
+      IncomingEmail.aggregate([
+        { $collStats: { storageStats: {} } },
+      ]).then((r) => r[0]?.storageStats || null).catch(() => null),
     ]);
 
     // User growth (last 30 days, grouped by day)
@@ -187,9 +189,11 @@ export async function GET() {
       emailVolume,
       storage: storageStats
         ? {
-            dataSize: storageStats.size || 0,
+            dataSize: storageStats.size || storageStats.totalSize || 0,
             storageSize: storageStats.storageSize || 0,
-            count: storageStats.count || 0,
+            count: storageStats.count || totalEmails,
+            indexSize: storageStats.totalIndexSize || storageStats.indexSize || 0,
+            objects: storageStats.count || totalEmails,
             avgObjSize: storageStats.avgObjSize || 0,
           }
         : null,

@@ -22,13 +22,14 @@ export function middleware(request) {
   const { pathname } = request.nextUrl;
 
   // ── Security Headers ──
-  // Strict CSP: allow self, inline styles (Tailwind), wss for socket
+  // Strict CSP: allow self, inline styles (Tailwind), Google Fonts, wss for socket
   const csp = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
-    "font-src 'self' data:",
+    "font-src 'self' data: https://fonts.gstatic.com",
     "connect-src 'self' ws: wss: http: https:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
