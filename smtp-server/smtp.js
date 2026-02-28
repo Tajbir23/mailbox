@@ -45,6 +45,7 @@ const MailboxSchema = new mongoose.Schema({
   ownerId: mongoose.Schema.Types.ObjectId,
   sharedWith: [mongoose.Schema.Types.ObjectId],
   isActive: { type: Boolean, default: true },
+  expiresAt: { type: Date, default: null },
 });
 
 const IncomingEmailSchema = new mongoose.Schema({
@@ -255,6 +256,28 @@ async function start() {
   smtpServer.on("error", (err) => {
     console.error("[SMTP] Server error:", err);
   });
+
+  // ── Auto-delete expired mailboxes (runs every 60s) ──
+  setInterval(async () => {
+    try {
+      const now = new Date();
+      const expiredMailboxes = await Mailbox.find({
+        expiresAt: { $ne: null, $lte: now },
+      }).lean();
+
+      for (const mb of expiredMailboxes) {
+        await IncomingEmail.deleteMany({ mailboxId: mb._id });
+        await Mailbox.deleteOne({ _id: mb._id });
+        console.log(`[Cleanup] Deleted expired mailbox: ${mb.emailAddress}`);
+      }
+
+      if (expiredMailboxes.length > 0) {
+        console.log(`[Cleanup] Removed ${expiredMailboxes.length} expired mailbox(es)`);
+      }
+    } catch (err) {
+      console.error("[Cleanup] Error:", err.message);
+    }
+  }, 60 * 1000); // every 60 seconds
 
   // Graceful shutdown
   const shutdown = async () => {

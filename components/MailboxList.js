@@ -21,6 +21,259 @@ function timeAgo(dateStr) {
   return date.toLocaleDateString();
 }
 
+function timeUntil(dateStr) {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = date - now;
+  if (diffMs <= 0) return "expiring...";
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 60) return `${diffMin}m left`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h left`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}d left`;
+}
+
+// ── MailboxActions dropdown ──
+function MailboxActions({ mb, onUpdate, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const [action, setAction] = useState(null); // "delete" | "transfer" | "expiry"
+  const [transferEmail, setTransferEmail] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [expiryTime, setExpiryTime] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const menuRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpen(false);
+        setAction(null);
+        setError("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete "${mb.emailAddress}" and ALL emails permanently?`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/mailboxes/${mb._id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onDelete(mb._id);
+      setOpen(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTransfer = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/mailboxes/${mb._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "transfer", newOwnerEmail: transferEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onUpdate();
+      setOpen(false);
+      setAction(null);
+      setTransferEmail("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExpiry = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const expiresAt = expiryDate && expiryTime
+        ? new Date(`${expiryDate}T${expiryTime}`).toISOString()
+        : expiryDate
+        ? new Date(`${expiryDate}T23:59:59`).toISOString()
+        : null;
+
+      const res = await fetch(`/api/mailboxes/${mb._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setExpiry", expiresAt }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onUpdate();
+      setOpen(false);
+      setAction(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeExpiry = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/mailboxes/${mb._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setExpiry", expiresAt: null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onUpdate();
+      setOpen(false);
+      setAction(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => { setOpen(!open); setAction(null); setError(""); }}
+        className="p-1.5 rounded-md hover:bg-gray-200 transition text-gray-500 hover:text-gray-700"
+        title="More actions"
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-8 z-50 w-64 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
+          {!action && (
+            <div className="py-1">
+              <button
+                onClick={() => setAction("transfer")}
+                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                Transfer Ownership
+              </button>
+              <button
+                onClick={() => setAction("expiry")}
+                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Set Auto-Delete Timer
+              </button>
+              <hr className="my-1" />
+              <button
+                onClick={handleDelete}
+                disabled={loading}
+                className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                {loading ? "Deleting..." : "Delete Mailbox"}
+              </button>
+            </div>
+          )}
+
+          {/* Transfer form */}
+          {action === "transfer" && (
+            <form onSubmit={handleTransfer} className="p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <button type="button" onClick={() => { setAction(null); setError(""); }} className="text-gray-400 hover:text-gray-600">
+                  ←
+                </button>
+                Transfer Ownership
+              </div>
+              <input
+                type="email"
+                value={transferEmail}
+                onChange={(e) => setTransferEmail(e.target.value)}
+                placeholder="New owner's email"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              {error && <p className="text-xs text-red-500">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
+              >
+                {loading ? "Transferring..." : "Transfer"}
+              </button>
+            </form>
+          )}
+
+          {/* Expiry form */}
+          {action === "expiry" && (
+            <form onSubmit={handleExpiry} className="p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <button type="button" onClick={() => { setAction(null); setError(""); }} className="text-gray-400 hover:text-gray-600">
+                  ←
+                </button>
+                Auto-Delete Timer
+              </div>
+              <div className="space-y-2">
+                <input
+                  type="date"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+                <input
+                  type="time"
+                  value={expiryTime}
+                  onChange={(e) => setExpiryTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+              {error && <p className="text-xs text-red-500">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-3 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 disabled:opacity-50 transition"
+              >
+                {loading ? "Setting..." : "Set Timer"}
+              </button>
+              {mb.expiresAt && (
+                <button
+                  type="button"
+                  onClick={removeExpiry}
+                  disabled={loading}
+                  className="w-full px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-md hover:bg-gray-200 disabled:opacity-50 transition"
+                >
+                  Remove Timer
+                </button>
+              )}
+            </form>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpdate }) {
   const [shareTarget, setShareTarget] = useState(null);
   const [mailboxes, setMailboxes] = useState(initialMailboxes);
@@ -32,6 +285,10 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     });
+  };
+
+  const handleDeleteMailbox = (deletedId) => {
+    setMailboxes((prev) => prev.filter((mb) => mb._id !== deletedId));
   };
 
   // Sync with parent props
@@ -131,7 +388,7 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
                         )}
                       </div>
 
-                      <div className="flex items-center space-x-2 mt-1 flex-wrap">
+                      <div className="flex items-center space-x-2 mt-1 flex-wrap gap-y-1">
                         {isOwner ? (
                           <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
                             Owner
@@ -144,6 +401,14 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
                         {mb.sharedWith?.length > 0 && (
                           <span className="text-xs text-gray-400">
                             Shared with {mb.sharedWith.length} user(s)
+                          </span>
+                        )}
+                        {mb.expiresAt && (
+                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {timeUntil(mb.expiresAt)}
                           </span>
                         )}
                       </div>
@@ -178,12 +443,15 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
                     {/* Right: actions */}
                     <div className="flex items-center space-x-2 shrink-0 self-end sm:self-start">
                       {isOwner && (
-                        <button
-                          onClick={() => setShareTarget(mb)}
-                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-md transition whitespace-nowrap"
-                        >
-                          Share
-                        </button>
+                        <>
+                          <button
+                            onClick={() => setShareTarget(mb)}
+                            className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-md transition whitespace-nowrap"
+                          >
+                            Share
+                          </button>
+                          <MailboxActions mb={mb} onUpdate={onUpdate} onDelete={handleDeleteMailbox} />
+                        </>
                       )}
                       <Link
                         href={`/dashboard/inbox/${mb._id}`}
