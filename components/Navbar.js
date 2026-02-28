@@ -32,12 +32,32 @@ export default function Navbar() {
                   Dashboard
                 </Link>
                 {session.user.role === "admin" && (
-                  <Link
-                    href="/admin/domains"
-                    className="px-3 py-1.5 text-sm font-medium text-surface-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all duration-200"
-                  >
-                    Manage Domains
-                  </Link>
+                  <>
+                    <Link
+                      href="/admin"
+                      className="px-3 py-1.5 text-sm font-medium text-surface-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all duration-200"
+                    >
+                      Admin
+                    </Link>
+                    <Link
+                      href="/admin/users"
+                      className="px-3 py-1.5 text-sm font-medium text-surface-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all duration-200"
+                    >
+                      Users
+                    </Link>
+                    <Link
+                      href="/admin/domains"
+                      className="px-3 py-1.5 text-sm font-medium text-surface-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all duration-200"
+                    >
+                      Domains
+                    </Link>
+                    <Link
+                      href="/admin/monitor"
+                      className="px-3 py-1.5 text-sm font-medium text-surface-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all duration-200"
+                    >
+                      Monitor
+                    </Link>
+                  </>
                 )}
               </div>
             )}
@@ -118,13 +138,37 @@ export default function Navbar() {
                   Dashboard
                 </Link>
                 {session.user.role === "admin" && (
-                  <Link
-                    href="/admin/domains"
-                    onClick={() => setMobileOpen(false)}
-                    className="block px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-600 rounded-lg transition"
-                  >
-                    Manage Domains
-                  </Link>
+                  <>
+                    <p className="px-3 pt-3 pb-1 text-[10px] font-bold text-surface-400 uppercase tracking-wider">Admin</p>
+                    <Link
+                      href="/admin"
+                      onClick={() => setMobileOpen(false)}
+                      className="block px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-600 rounded-lg transition"
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      href="/admin/users"
+                      onClick={() => setMobileOpen(false)}
+                      className="block px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-600 rounded-lg transition"
+                    >
+                      Users
+                    </Link>
+                    <Link
+                      href="/admin/domains"
+                      onClick={() => setMobileOpen(false)}
+                      className="block px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-600 rounded-lg transition"
+                    >
+                      Domains
+                    </Link>
+                    <Link
+                      href="/admin/monitor"
+                      onClick={() => setMobileOpen(false)}
+                      className="block px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-600 rounded-lg transition"
+                    >
+                      Monitor
+                    </Link>
+                  </>
                 )}
                 <button
                   onClick={() => { signOut({ callbackUrl: "/login" }); setMobileOpen(false); }}
