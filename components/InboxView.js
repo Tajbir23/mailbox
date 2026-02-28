@@ -31,6 +31,12 @@ function timeAgo(dateStr) {
   return date.toLocaleDateString();
 }
 
+function senderInitial(from) {
+  if (!from) return "?";
+  const name = from.split("<")[0].trim();
+  return (name[0] || "?").toUpperCase();
+}
+
 export default function InboxView({ mailboxId }) {
   const [emails, setEmails] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -137,7 +143,9 @@ export default function InboxView({ mailboxId }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center animate-pulse">
+          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+        </div>
       </div>
     );
   }
@@ -146,26 +154,26 @@ export default function InboxView({ mailboxId }) {
     <div className="flex flex-col h-[calc(100vh-10rem)]">
       {/* New email notification toast */}
       {newEmailAlert && (
-        <div className="mb-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center gap-2 animate-bounce">
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-          </svg>
-          New email received!
+        <div className="mb-3 px-4 py-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200/60 rounded-2xl text-green-700 text-sm flex items-center gap-3 animate-slide-up shadow-sm">
+          <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+          </div>
+          <span className="font-medium">New email received!</span>
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row flex-1 bg-white rounded-lg shadow overflow-hidden">
-        {/* Email list */}
-        <div className="w-full md:w-1/3 md:min-w-[260px] md:max-w-[380px] border-b md:border-b-0 md:border-r border-gray-200 overflow-y-auto shrink-0 max-h-[40vh] md:max-h-none">
+      <div className="flex flex-col md:flex-row flex-1 card overflow-hidden">
+        {/* Email list sidebar */}
+        <div className="w-full md:w-[340px] lg:w-[380px] border-b md:border-b-0 md:border-r border-surface-100 overflow-y-auto shrink-0 max-h-[40vh] md:max-h-none">
           {/* Header with unread count */}
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">
-                Inbox
-              </span>
+          <div className="px-5 py-4 border-b border-surface-100 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-sm z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-brand-50 flex items-center justify-center">
+                <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-2.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+              </div>
+              <span className="text-sm font-semibold text-surface-800">Inbox</span>
               {unreadCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-red-500 rounded-full">
+                <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 text-xs font-bold text-white bg-gradient-to-r from-red-500 to-rose-500 rounded-full shadow-sm">
                   {unreadCount}
                 </span>
               )}
@@ -173,7 +181,7 @@ export default function InboxView({ mailboxId }) {
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                className="text-xs text-brand-600 hover:text-brand-700 font-semibold hover:bg-brand-50 px-2.5 py-1.5 rounded-lg transition-all"
               >
                 Mark all read
               </button>
@@ -181,83 +189,124 @@ export default function InboxView({ mailboxId }) {
           </div>
 
           {emails.length === 0 ? (
-            <div className="p-6 text-center text-gray-400 text-sm">
-              No emails yet. Waiting for incoming mail…
-              <div className="mt-2 animate-pulse text-indigo-400">●</div>
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-surface-50 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-surface-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-2.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+              </div>
+              <p className="text-sm font-medium text-surface-500 mb-1">No emails yet</p>
+              <p className="text-xs text-surface-400">Waiting for incoming mail…</p>
+              <div className="mt-3 flex justify-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" style={{ animationDelay: "0.2s" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" style={{ animationDelay: "0.4s" }} />
+              </div>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-100">
+            <ul>
               {emails.map((email) => (
                 <li
                   key={email._id}
                   onClick={() => handleSelectEmail(email)}
-                  className={`px-4 py-3 cursor-pointer hover:bg-indigo-50 transition relative ${
+                  className={`px-5 py-4 cursor-pointer transition-all relative group border-b border-surface-50 ${
                     selected?._id === email._id
-                      ? "bg-indigo-50 border-l-2 border-indigo-600"
-                      : ""
-                  } ${!email.isRead ? "bg-blue-50/50" : ""}`}
+                      ? "bg-brand-50/60 border-l-[3px] border-l-brand-500"
+                      : "hover:bg-surface-50 border-l-[3px] border-l-transparent"
+                  } ${!email.isRead ? "bg-blue-50/30" : ""}`}
                 >
-                  {/* Unread dot */}
-                  {!email.isRead && (
-                    <span className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-indigo-500 rounded-full" />
-                  )}
-
-                  <p
-                    className={`text-sm truncate ${
+                  <div className="flex gap-3">
+                    {/* Sender avatar */}
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-sm font-bold ${
                       !email.isRead
-                        ? "font-semibold text-gray-900"
-                        : "font-medium text-gray-700"
-                    }`}
-                  >
-                    {email.subject || "(No Subject)"}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
-                    {email.from}
-                  </p>
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    {timeAgo(email.receivedAt)}
-                  </p>
+                        ? "bg-gradient-to-br from-brand-500 to-purple-600 text-white shadow-brand-sm"
+                        : "bg-surface-100 text-surface-500"
+                    }`}>
+                      {senderInitial(email.from)}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className={`text-sm truncate ${
+                          !email.isRead
+                            ? "font-semibold text-surface-900"
+                            : "font-medium text-surface-600"
+                        }`}>
+                          {email.subject || "(No Subject)"}
+                        </p>
+                        {!email.isRead && (
+                          <span className="w-2 h-2 bg-brand-500 rounded-full shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-xs text-surface-500 truncate mt-0.5">
+                        {email.from}
+                      </p>
+                      <p className="text-[11px] text-surface-400 mt-1">
+                        {timeAgo(email.receivedAt)}
+                      </p>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        {/* Email detail */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+        {/* Email detail view */}
+        <div className="flex-1 overflow-y-auto min-w-0 bg-white">
           {selected ? (
-            <div className="p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                {selected.subject}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 mb-4">
-                <span className="break-all">
-                  <strong>From:</strong> {selected.from}
-                </span>
-                <span className="break-all">
-                  <strong>To:</strong> {selected.to}
-                </span>
-                <span className="whitespace-nowrap">
-                  {new Date(selected.receivedAt).toLocaleString()}
-                </span>
+            <div className="animate-fade-in">
+              {/* Email header */}
+              <div className="px-6 py-5 border-b border-surface-100">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shrink-0 text-white font-bold text-lg shadow-brand-sm">
+                    {senderInitial(selected.from)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg font-bold text-surface-900 mb-2 leading-tight">
+                      {selected.subject || "(No Subject)"}
+                    </h2>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                      <span className="text-surface-700 break-all">
+                        <span className="text-surface-400 text-xs uppercase tracking-wider mr-1">From</span>
+                        {selected.from}
+                      </span>
+                      <span className="text-surface-700 break-all">
+                        <span className="text-surface-400 text-xs uppercase tracking-wider mr-1">To</span>
+                        {selected.to}
+                      </span>
+                    </div>
+                    <p className="text-xs text-surface-400 mt-1.5">
+                      {new Date(selected.receivedAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <hr className="mb-4" />
-              {selected.bodyHtml ? (
-                <div
-                  className="prose max-w-none overflow-x-auto break-words"
-                  dangerouslySetInnerHTML={{
-                    __html: sanitizeHtml(selected.bodyHtml),
-                  }}
-                />
-              ) : (
-                <pre className="whitespace-pre-wrap text-sm text-gray-700">
-                  {selected.bodyText || "(Empty body)"}
-                </pre>
-              )}
+
+              {/* Email body */}
+              <div className="p-6">
+                {selected.bodyHtml ? (
+                  <div
+                    className="prose max-w-none overflow-x-auto break-words text-surface-700
+                      prose-headings:text-surface-800 prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline
+                      prose-img:rounded-xl prose-pre:bg-surface-50 prose-pre:border prose-pre:border-surface-200
+                      prose-code:text-brand-700 prose-code:bg-brand-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded"
+                    dangerouslySetInnerHTML={{
+                      __html: sanitizeHtml(selected.bodyHtml),
+                    }}
+                  />
+                ) : (
+                  <pre className="whitespace-pre-wrap text-sm text-surface-600 leading-relaxed font-sans">
+                    {selected.bodyText || "(Empty body)"}
+                  </pre>
+                )}
+              </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-              Select an email to read
+            <div className="flex flex-col items-center justify-center h-full text-center py-16">
+              <div className="w-20 h-20 rounded-3xl bg-surface-50 flex items-center justify-center mb-5">
+                <svg className="w-10 h-10 text-surface-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+              </div>
+              <p className="text-base font-semibold text-surface-500 mb-1">No email selected</p>
+              <p className="text-sm text-surface-400">Choose an email from the list to read it</p>
             </div>
           )}
         </div>
