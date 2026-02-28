@@ -31,6 +31,7 @@ export function middleware(request) {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
     "connect-src 'self' ws: wss: http: https:",
+    "frame-src blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

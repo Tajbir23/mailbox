@@ -5,7 +5,7 @@ import io from "socket.io-client";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
-// ── Basic HTML sanitizer for email body (XSS protection) ──
+// ── Sanitize HTML email: strip scripts/event handlers but preserve styles ──
 function sanitizeHtml(html) {
   if (!html) return "";
   return html
@@ -15,6 +15,45 @@ function sanitizeHtml(html) {
     .replace(/javascript\s*:/gi, "blocked:")
     .replace(/vbscript\s*:/gi, "blocked:")
     .replace(/data\s*:\s*text\/html/gi, "blocked:");
+}
+
+// ── Sandboxed iframe renderer for HTML emails with full CSS support ──
+function EmailHtmlFrame({ html }) {
+  const iframeRef = useRef(null);
+  const [height, setHeight] = useState(300);
+
+  useEffect(() => {
+    if (!iframeRef.current || !html) return;
+    const sanitized = sanitizeHtml(html);
+    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1e293b;word-wrap:break-word;overflow-wrap:break-word}img{max-width:100%;height:auto}a{color:#6366f1}table{max-width:100%!important;width:auto!important}pre{white-space:pre-wrap;overflow-x:auto}</style></head><body>${sanitized}</body></html>`;
+    const blob = new Blob([doc], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    iframeRef.current.src = url;
+
+    const iframe = iframeRef.current;
+    const handleLoad = () => {
+      try {
+        const h = iframe.contentDocument?.documentElement?.scrollHeight || iframe.contentWindow?.document?.body?.scrollHeight;
+        if (h) setHeight(Math.min(Math.max(h + 32, 200), 2000));
+      } catch {}
+      URL.revokeObjectURL(url);
+    };
+    iframe.addEventListener("load", handleLoad);
+    return () => {
+      iframe.removeEventListener("load", handleLoad);
+      URL.revokeObjectURL(url);
+    };
+  }, [html]);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      sandbox="allow-same-origin"
+      title="Email content"
+      className="w-full border-0 rounded-xl bg-white"
+      style={{ height: `${height}px`, minHeight: "200px" }}
+    />
+  );
 }
 
 function timeAgo(dateStr) {
@@ -284,15 +323,7 @@ export default function InboxView({ mailboxId }) {
               {/* Email body */}
               <div className="p-6">
                 {selected.bodyHtml ? (
-                  <div
-                    className="prose max-w-none overflow-x-auto break-words text-surface-700
-                      prose-headings:text-surface-800 prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline
-                      prose-img:rounded-xl prose-pre:bg-surface-50 prose-pre:border prose-pre:border-surface-200
-                      prose-code:text-brand-700 prose-code:bg-brand-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded"
-                    dangerouslySetInnerHTML={{
-                      __html: sanitizeHtml(selected.bodyHtml),
-                    }}
-                  />
+                  <EmailHtmlFrame html={selected.bodyHtml} />
                 ) : (
                   <pre className="whitespace-pre-wrap text-sm text-surface-600 leading-relaxed font-sans">
                     {selected.bodyText || "(Empty body)"}
