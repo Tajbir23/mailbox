@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import Mailbox from "@/lib/models/Mailbox";
 import Domain from "@/lib/models/Domain";
+import IncomingEmail from "@/lib/models/IncomingEmail";
 
 // GET /api/mailboxes – list mailboxes where user is owner OR sharedWith
 export async function GET() {
@@ -25,7 +26,54 @@ export async function GET() {
       .sort({ createdAt: -1 })
       .lean();
 
-    return NextResponse.json(mailboxes);
+    // Fetch last email and unread count for each mailbox
+    const mailboxIds = mailboxes.map((mb) => mb._id);
+
+    const [lastEmails, unreadCounts] = await Promise.all([
+      // Get last email per mailbox using aggregation
+      IncomingEmail.aggregate([
+        { $match: { mailboxId: { $in: mailboxIds } } },
+        { $sort: { receivedAt: -1 } },
+        {
+          $group: {
+            _id: "$mailboxId",
+            lastEmail: {
+              $first: {
+                _id: "$_id",
+                from: "$from",
+                subject: "$subject",
+                receivedAt: "$receivedAt",
+                isRead: "$isRead",
+              },
+            },
+          },
+        },
+      ]),
+      // Get unread count per mailbox
+      IncomingEmail.aggregate([
+        { $match: { mailboxId: { $in: mailboxIds }, isRead: false } },
+        { $group: { _id: "$mailboxId", count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    // Build lookup maps
+    const lastEmailMap = {};
+    for (const item of lastEmails) {
+      lastEmailMap[item._id.toString()] = item.lastEmail;
+    }
+    const unreadMap = {};
+    for (const item of unreadCounts) {
+      unreadMap[item._id.toString()] = item.count;
+    }
+
+    // Attach to mailboxes
+    const enriched = mailboxes.map((mb) => ({
+      ...mb,
+      lastEmail: lastEmailMap[mb._id.toString()] || null,
+      unreadCount: unreadMap[mb._id.toString()] || 0,
+    }));
+
+    return NextResponse.json(enriched);
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

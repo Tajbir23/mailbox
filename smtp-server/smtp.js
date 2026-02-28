@@ -54,6 +54,7 @@ const IncomingEmailSchema = new mongoose.Schema({
   subject: { type: String, default: "(No Subject)" },
   bodyHtml: { type: String, default: "" },
   bodyText: { type: String, default: "" },
+  isRead: { type: Boolean, default: false },
   attachments: [
     {
       filename: String,
@@ -81,6 +82,16 @@ io.on("connection", (socket) => {
   socket.on("join-mailbox", (mailboxId) => {
     socket.join(mailboxId);
     console.log(`[Socket.io] ${socket.id} joined room ${mailboxId}`);
+  });
+
+  // Dashboard room for real-time mailbox list updates
+  socket.on("join-dashboard", (userId) => {
+    socket.join(`dashboard-${userId}`);
+    console.log(`[Socket.io] ${socket.id} joined dashboard-${userId}`);
+  });
+
+  socket.on("leave-dashboard", (userId) => {
+    socket.leave(`dashboard-${userId}`);
   });
 
   socket.on("leave-mailbox", (mailboxId) => {
@@ -181,8 +192,31 @@ const smtpServer = new SMTPServer({
           subject: email.subject,
           bodyText: email.bodyText,
           bodyHtml: email.bodyHtml,
+          isRead: false,
           receivedAt: email.receivedAt,
         });
+
+        // Emit to dashboard room for the mailbox owner + shared users
+        const dashboardPayload = {
+          mailboxId: mailbox._id.toString(),
+          emailAddress: mailbox.emailAddress,
+          lastEmail: {
+            _id: email._id,
+            from: email.from,
+            subject: email.subject,
+            receivedAt: email.receivedAt,
+          },
+        };
+        // Notify owner
+        if (mailbox.ownerId) {
+          io.to(`dashboard-${mailbox.ownerId.toString()}`).emit("dashboard-new-email", dashboardPayload);
+        }
+        // Notify shared users
+        if (mailbox.sharedWith && mailbox.sharedWith.length > 0) {
+          for (const uid of mailbox.sharedWith) {
+            io.to(`dashboard-${uid.toString()}`).emit("dashboard-new-email", dashboardPayload);
+          }
+        }
       }
 
       callback();
