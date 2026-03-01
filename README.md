@@ -11,7 +11,8 @@ Self-hosted, receive-only email SaaS platform built with **Next.js 14**, a custo
 3. [Project Structure](#project-structure)
 4. [Local Development Setup](#local-development-setup)
 5. [Environment Variables](#environment-variables)
-6. [VPS Production Setup (Step-by-Step)](#vps-production-setup-step-by-step)
+6. [Quick Auto-Setup (Recommended)](#quick-auto-setup-recommended)
+7. [VPS Production Setup (Step-by-Step)](#vps-production-setup-step-by-step)
    - [1. Server Preparation](#1-server-preparation)
    - [2. Install Node.js (via NVM)](#2-install-nodejs-via-nvm)
    - [3. Install PM2](#3-install-pm2)
@@ -23,15 +24,15 @@ Self-hosted, receive-only email SaaS platform built with **Next.js 14**, a custo
    - [9. Start Services with PM2](#9-start-services-with-pm2)
    - [10. SSL Certificate (Let's Encrypt)](#10-ssl-certificate-lets-encrypt)
    - [11. Update Nginx for HTTPS](#11-update-nginx-for-https)
-7. [DNS Configuration](#dns-configuration)
-8. [GitHub Actions CI/CD](#github-actions-cicd)
-9. [Admin Panel](#admin-panel)
-10. [SMTP Server Details](#smtp-server-details)
-11. [Socket.io Real-time](#socketio-real-time)
-12. [Security](#security)
-13. [Useful PM2 Commands](#useful-pm2-commands)
-14. [Troubleshooting](#troubleshooting)
-15. [License](#license)
+8. [DNS Configuration](#dns-configuration)
+9. [GitHub Actions CI/CD](#github-actions-cicd)
+10. [Admin Panel](#admin-panel)
+11. [SMTP Server Details](#smtp-server-details)
+12. [Socket.io Real-time](#socketio-real-time)
+13. [Security](#security)
+14. [Useful PM2 Commands](#useful-pm2-commands)
+15. [Troubleshooting](#troubleshooting)
+16. [License](#license)
 
 ---
 
@@ -103,7 +104,10 @@ mailbox-saas/
 ├── smtp-server/
 │   └── smtp.js              # Standalone SMTP + Socket.io server
 ├── scripts/
-│   └── seed-admin.js        # First admin user seeder
+│   ├── seed-admin.js        # First admin user seeder
+│   ├── setup.sh             # One-command full server setup
+│   └── deploy.sh            # Quick redeploy (pull, build, restart)
+├── ecosystem.config.js      # PM2 process configuration
 ├── nginx-mailbox.conf       # Nginx site configuration (reference)
 ├── middleware.js             # Security headers, CSP, request tracing
 ├── next.config.js           # Next.js optimizations
@@ -174,7 +178,100 @@ NEXT_PUBLIC_SOCKET_URL=https://yourdomain.com           # Production (proxied by
 
 ---
 
+## Quick Auto-Setup (Recommended)
+
+One command to set up everything on a fresh **Ubuntu 22.04/24.04** VPS — Node.js, Nginx, SSL, PM2, build, and start.
+
+### Step 1: Clone the repo
+
+```bash
+ssh root@YOUR_VPS_IP
+git clone https://github.com/your-username/mailbox.git /var/www/mailbox-saas
+cd /var/www/mailbox-saas
+```
+
+### Step 2: Configure environment
+
+```bash
+nano .env.local
+```
+
+Minimum required values:
+
+```env
+# MongoDB
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/mailbox
+
+# NextAuth
+NEXTAUTH_SECRET=your-random-secret-string
+NEXTAUTH_URL=https://yourdomain.com
+
+# SMTP
+SMTP_PORT=25
+MAIL_SERVER_HOSTNAME=mail.yourdomain.com
+
+# Socket.io
+SOCKET_PORT=4000
+NEXT_PUBLIC_SOCKET_URL=https://yourdomain.com
+
+# Domain (used by setup script for nginx config)
+DOMAIN=yourdomain.com
+```
+
+### Step 3: Run setup
+
+```bash
+sudo bash scripts/setup.sh
+```
+
+**This single command will automatically:**
+
+| Step | What it does |
+|---|---|
+| 1 | Install Node.js 20, Nginx, Certbot, PM2, Git |
+| 2 | Install npm dependencies |
+| 3 | Build the Next.js production bundle |
+| 4 | Generate & enable Nginx config (reads domain from `.env.local`) |
+| 5 | Obtain SSL certificate via Certbot (if domain points to server) |
+| 6 | Create PM2 ecosystem config |
+| 7 | Start Next.js web app + SMTP server via PM2 |
+| 8 | Enable PM2 startup on reboot |
+| 9 | Configure firewall (ports 80, 443, 25, 22) |
+
+### Step 4: Seed admin user
+
+```bash
+npm run seed
+# Admin created -> admin@mailbox.local / password: admin123
+```
+
+> **Change the admin password immediately after first login!**
+
+### Redeployment (after code updates)
+
+Whenever you push new code, just run:
+
+```bash
+sudo bash scripts/deploy.sh
+```
+
+This will: `git pull` → `npm install` → `npm run build` → `pm2 restart` → `nginx reload`
+
+Or equivalently:
+
+```bash
+npm run deploy
+```
+
+### Re-running setup
+
+The setup script is **idempotent** — safe to run multiple times. It won't break existing config, just updates everything to the latest state.
+
+---
+
 ## VPS Production Setup (Step-by-Step)
+
+> **Prefer the [Quick Auto-Setup](#quick-auto-setup-recommended) above.** The manual steps below are for reference or if you need granular control.
 
 This guide assumes a fresh **Ubuntu 22.04/24.04** VPS with root access.
 
