@@ -70,9 +70,17 @@ function timeAgo(dateStr) {
   return date.toLocaleDateString();
 }
 
+function parseSender(from) {
+  if (!from) return { name: "Unknown", email: "" };
+  const match = from.match(/^"?([^"<]+?)"?\s*<([^>]+)>/);
+  if (match) return { name: match[1].trim(), email: match[2].trim() };
+  const emailOnly = from.match(/<?([\w.+-]+@[\w.-]+)>?/);
+  if (emailOnly) return { name: emailOnly[1].split("@")[0], email: emailOnly[1] };
+  return { name: from.trim(), email: "" };
+}
+
 function senderInitial(from) {
-  if (!from) return "?";
-  const name = from.split("<")[0].trim();
+  const { name } = parseSender(from);
   return (name[0] || "?").toUpperCase();
 }
 
@@ -276,7 +284,10 @@ export default function InboxView({ mailboxId }) {
                         )}
                       </div>
                       <p className="text-xs text-surface-500 truncate mt-0.5">
-                        {email.from}
+                        {parseSender(email.from).name}
+                        {parseSender(email.from).email && (
+                          <span className="text-surface-400"> &lt;{parseSender(email.from).email}&gt;</span>
+                        )}
                       </p>
                       <p className="text-[11px] text-surface-400 mt-1">
                         {timeAgo(email.receivedAt)}
@@ -306,7 +317,10 @@ export default function InboxView({ mailboxId }) {
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                       <span className="text-surface-700 break-all">
                         <span className="text-surface-400 text-xs uppercase tracking-wider mr-1">From</span>
-                        {selected.from}
+                        <span className="font-medium">{parseSender(selected.from).name}</span>
+                        {parseSender(selected.from).email && (
+                          <span className="text-surface-400 text-xs ml-1">&lt;{parseSender(selected.from).email}&gt;</span>
+                        )}
                       </span>
                       <span className="text-surface-700 break-all">
                         <span className="text-surface-400 text-xs uppercase tracking-wider mr-1">To</span>

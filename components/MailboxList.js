@@ -411,7 +411,7 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
                             </span>
                           </div>
                           <p className="text-[11px] text-surface-400 truncate mt-0.5">
-                            From: {lastEmail.from}
+                            From: {(() => { const m = lastEmail.from?.match(/^"?([^"<]+?)"?\s*<([^>]+)>/); return m ? m[1].trim() : lastEmail.from; })()}
                           </p>
                         </Link>
                       )}
