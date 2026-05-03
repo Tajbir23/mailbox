@@ -86,11 +86,11 @@ export default function AdminDomainsPage() {
     fetchDomains();
   };
 
-  const handleApprove = async (id) => {
+  const handleApproveWebsite = async (id, isApproved) => {
     await fetch("/api/admin/domains", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, verificationStatus: "verified" }),
+      body: JSON.stringify({ id, isWebsiteApproved: isApproved }),
     });
     fetchDomains();
   };
@@ -185,7 +185,8 @@ export default function AdminDomainsPage() {
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Domain</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Type</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Owner</th>
-              <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Verified</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Verified (DNS)</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Website Approved</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Created</th>
               <th className="px-6 py-4 text-right text-xs font-bold text-surface-500 uppercase tracking-wider">Actions</th>
@@ -232,6 +233,11 @@ export default function AdminDomainsPage() {
                   })()}
                 </td>
                 <td className="px-6 py-4">
+                  <span className={d.isWebsiteApproved ? "badge-success" : "badge-warning"}>
+                    {d.isWebsiteApproved ? "Approved" : "Pending"}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
                   <span className={d.isActive ? "badge-success" : "badge-danger"}>
                     {d.isActive ? "Active" : "Inactive"}
                   </span>
@@ -241,12 +247,19 @@ export default function AdminDomainsPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    {d.verificationStatus !== "verified" && (
+                    {!d.isWebsiteApproved ? (
                       <button
-                        onClick={() => handleApprove(d._id)}
+                        onClick={() => handleApproveWebsite(d._id, true)}
                         className="btn-primary !text-xs !py-1.5 !px-3 !rounded-lg !bg-green-600 hover:!bg-green-700"
                       >
-                        Approve
+                        Approve Website
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleApproveWebsite(d._id, false)}
+                        className="btn-primary !text-xs !py-1.5 !px-3 !rounded-lg !bg-amber-600 hover:!bg-amber-700"
+                      >
+                        Revoke Website
                       </button>
                     )}
                     <button

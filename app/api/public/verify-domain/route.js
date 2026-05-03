@@ -20,8 +20,12 @@ export async function GET(req) {
 
   try {
     await dbConnect();
-    // Check if the domain is registered and active in our database
-    const existingDomain = await Domain.findOne({ name: domain.toLowerCase(), isActive: true });
+    // Check if the domain is registered, active, and approved for website hosting by admin
+    const existingDomain = await Domain.findOne({ 
+      name: domain.toLowerCase(), 
+      isActive: true,
+      isWebsiteApproved: true 
+    });
     
     if (existingDomain) {
       // Return 200 OK to tell Caddy to issue an SSL certificate
