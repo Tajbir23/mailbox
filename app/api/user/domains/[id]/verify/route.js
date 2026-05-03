@@ -42,6 +42,12 @@ export async function POST(request, { params }) {
       errors: [],
     };
 
+    // DNS error codes that mean "we got a clean answer: no records exist"
+    // (vs. transient codes like ETIMEOUT/EAI_AGAIN where we shouldn't trust the result)
+    const CLEAN_NEGATIVE_CODES = new Set(["ENODATA", "ENOTFOUND", "NODATA"]);
+    let mxLookupConclusive = true;
+    let txtLookupConclusive = true;
+
     // ---- Check MX Record ----
     try {
       const mxRecords = await resolveMx(domain.name);
@@ -59,6 +65,9 @@ export async function POST(request, { params }) {
         );
       }
     } catch (err) {
+      if (!CLEAN_NEGATIVE_CODES.has(err.code)) {
+        mxLookupConclusive = false;
+      }
       results.errors.push(`MX lookup failed: ${err.code || err.message}`);
     }
 
@@ -76,19 +85,25 @@ export async function POST(request, { params }) {
         );
       }
     } catch (err) {
+      if (!CLEAN_NEGATIVE_CODES.has(err.code)) {
+        txtLookupConclusive = false;
+      }
       results.errors.push(`TXT lookup failed: ${err.code || err.message}`);
     }
 
     // ---- Update domain status ----
-    domain.dnsRecords.mxVerified = results.mxVerified;
-    domain.dnsRecords.txtVerified = results.txtVerified;
-
     if (results.mxVerified && results.txtVerified) {
+      domain.dnsRecords.mxVerified = true;
+      domain.dnsRecords.txtVerified = true;
       domain.verificationStatus = "verified";
       domain.verifiedAt = new Date();
-    } else {
+    } else if (mxLookupConclusive && txtLookupConclusive) {
+      // We got conclusive negative answers — record the actual state and mark failed
+      domain.dnsRecords.mxVerified = results.mxVerified;
+      domain.dnsRecords.txtVerified = results.txtVerified;
       domain.verificationStatus = "failed";
     }
+    // else: transient DNS error — leave existing status untouched, just report errors
 
     await domain.save();
 

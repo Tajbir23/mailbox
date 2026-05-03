@@ -121,6 +121,14 @@ export async function POST(request) {
       return NextResponse.json({ error: "You do not have access to this domain" }, { status: 403 });
     }
 
+    // Domain must be verified — otherwise mailbox would never receive email
+    if (domain.verificationStatus !== "verified") {
+      return NextResponse.json(
+        { error: "Domain DNS is not verified yet. Verify the domain before creating mailboxes." },
+        { status: 400 }
+      );
+    }
+
     const emailAddress = `${prefixClean}@${domain.name}`;
 
     // Check uniqueness

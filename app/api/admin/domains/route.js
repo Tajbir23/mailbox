@@ -39,21 +39,36 @@ export async function POST(request) {
       return NextResponse.json({ error: "Domain name is required" }, { status: 400 });
     }
 
-    const exists = await Domain.findOne({ name: name.toLowerCase() });
+    const domainName = name.toLowerCase().trim();
+    if (!/^[a-z0-9]+([\-.][a-z0-9]+)*\.[a-z]{2,}$/.test(domainName)) {
+      return NextResponse.json(
+        { error: "Invalid domain format (e.g. mydomain.com)" },
+        { status: 400 }
+      );
+    }
+
+    const exists = await Domain.findOne({ name: domainName });
     if (exists) {
       return NextResponse.json({ error: "Domain already exists" }, { status: 409 });
     }
 
-    const domain = await Domain.create({
-      name: name.toLowerCase(),
-      visibility: visibility || "public",
-      ownerId: session.user.id,
-      isSystemDomain: true,
-      verificationStatus: "verified",
-      verifiedAt: new Date(),
-      dnsRecords: { mxVerified: true, txtVerified: true },
-    });
-    return NextResponse.json(domain, { status: 201 });
+    try {
+      const domain = await Domain.create({
+        name: domainName,
+        visibility: visibility || "public",
+        ownerId: session.user.id,
+        isSystemDomain: true,
+        verificationStatus: "verified",
+        verifiedAt: new Date(),
+        dnsRecords: { mxVerified: true, txtVerified: true },
+      });
+      return NextResponse.json(domain, { status: 201 });
+    } catch (err) {
+      if (err && err.code === 11000) {
+        return NextResponse.json({ error: "Domain already exists" }, { status: 409 });
+      }
+      throw err;
+    }
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

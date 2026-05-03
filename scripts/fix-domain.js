@@ -1,21 +1,47 @@
-// One-time script to fix genuinesoftmart.store domain:
+// One-time script to fix admin-added domains:
 // - Set isSystemDomain = true
 // - Reset verificationStatus to "verified"
+//
+// Usage:
+//   node scripts/fix-domain.js                    -> fixes default domain
+//   node scripts/fix-domain.js example.com        -> fixes a specific domain
 
 const { MongoClient } = require("mongodb");
+const path = require("path");
+const fs = require("fs");
 
-const MONGODB_URI =
-  "mongodb+srv://akash123:akash123@cluster0.sdyx3bs.mongodb.net/mailBox?appName=Cluster0";
+// ---- load .env.local manually ----
+const envPath = path.resolve(__dirname, "..", ".env.local");
+if (fs.existsSync(envPath)) {
+  const lines = fs.readFileSync(envPath, "utf-8").split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const idx = trimmed.indexOf("=");
+    if (idx === -1) continue;
+    const key = trimmed.slice(0, idx).trim();
+    const val = trimmed.slice(idx + 1).trim();
+    if (!process.env[key]) process.env[key] = val;
+  }
+}
+
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+  console.error("MONGODB_URI is not set. Add it to .env.local.");
+  process.exit(1);
+}
+
+const targetDomain = process.argv[2] || "genuinesoftmart.store";
 
 async function main() {
   const client = new MongoClient(MONGODB_URI);
   try {
     await client.connect();
-    const db = client.db("mailBox");
+    // Use the database name from the URI (falls back to "mailBox")
+    const db = client.db();
 
-    // Fix all admin-added domains (mark as system + verified)
     const result = await db.collection("domains").updateMany(
-      { name: "genuinesoftmart.store" },
+      { name: targetDomain },
       {
         $set: {
           isSystemDomain: true,
@@ -27,16 +53,18 @@ async function main() {
       }
     );
 
-    console.log(`Updated ${result.modifiedCount} domain(s)`);
+    console.log(`Updated ${result.modifiedCount} domain(s) for "${targetDomain}"`);
 
-    // Show result
     const domain = await db
       .collection("domains")
-      .findOne({ name: "genuinesoftmart.store" });
+      .findOne({ name: targetDomain });
     console.log("Domain now:", JSON.stringify(domain, null, 2));
   } finally {
     await client.close();
   }
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

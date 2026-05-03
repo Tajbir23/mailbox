@@ -38,6 +38,7 @@ Self-hosted, receive-only email SaaS platform built with **Next.js 14**, a custo
 
 ## Features
 
+- **White-Label Custom Domains** — Users can point their own domain completely to the service without redirect issues. 
 - **Custom Domains** — Add your own domains with MX + TXT DNS verification
 - **Real-Time Inbox** — Emails arrive instantly via WebSocket (Socket.io)
 - **Team Sharing** — Share mailboxes with team members
@@ -616,6 +617,18 @@ Access admin features at `/admin` (requires admin role).
 | `/api/admin/users` | PATCH | Toggle role or reset password |
 | `/api/admin/users` | DELETE | Delete user + cascade all data |
 | `/api/admin/domains` | GET/POST/DELETE | Manage system domains |
+
+---
+
+## Setting Up White-label Custom Domains
+
+To allow your users to load your entire application smoothly on their own domains without seeing your base domain:
+
+1. **DNS Setup for Users:** Tell them to create an `A` record pointing to your server's IP address or a `CNAME` targeting your main domain.
+2. **Nginx Catch-All:** Ensure Nginx listens using `default_server` and accepts all domains (`server_name _;`) so it proxies any domain traffic directly to your Next.js app.
+3. **NextAuth Trick:** NextAuth will automatically switch context based on the modified Setup `/app/api/auth/[...nextauth]/route.js` (which updates `process.env.NEXTAUTH_URL` iteratively) allowing users to safely log in from their own domains.
+
+> **Note on Auto SSL:** For complete Custom Domains HTTPS support without manual certificates, you may want to migrate from Nginx to **Caddy Server** (`caddyserver.com`), thanks to its robust feature of "On-Demand TLS". Caddy will automatically provision Let's Encrypt certificates per each new custom domain on request.
 
 ---
 

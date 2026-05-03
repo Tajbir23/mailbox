@@ -57,14 +57,23 @@ export async function POST(request) {
       return NextResponse.json({ error: "This domain is already registered" }, { status: 409 });
     }
 
-    const domain = await Domain.create({
-      name: domainName,
-      visibility: "private",
-      ownerId: session.user.id,
-      verificationStatus: "pending",
-    });
-
-    return NextResponse.json(domain, { status: 201 });
+    try {
+      const domain = await Domain.create({
+        name: domainName,
+        visibility: "private",
+        ownerId: session.user.id,
+        verificationStatus: "pending",
+      });
+      return NextResponse.json(domain, { status: 201 });
+    } catch (err) {
+      if (err && err.code === 11000) {
+        return NextResponse.json(
+          { error: "This domain is already registered" },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
