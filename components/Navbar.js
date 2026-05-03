@@ -67,17 +67,21 @@ export default function Navbar() {
           <div className="flex items-center gap-3 shrink-0">
             {session ? (
               <>
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-50 rounded-lg border border-surface-100">
+                <Link
+                  href="/dashboard/settings"
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-50 hover:bg-brand-50 rounded-lg border border-surface-100 hover:border-brand-100 transition group"
+                  title="Account settings"
+                >
                   <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
                     {session.user.name?.charAt(0)?.toUpperCase() || "U"}
                   </div>
-                  <span className="text-sm font-medium text-surface-700 max-w-[120px] truncate">
+                  <span className="text-sm font-medium text-surface-700 group-hover:text-brand-700 max-w-[120px] truncate">
                     {session.user.name}
                   </span>
                   {session.user.role === "admin" && (
                     <span className="badge-brand text-[10px] py-0.5 px-1.5">Admin</span>
                   )}
-                </div>
+                </Link>
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
                   className="btn-ghost text-sm py-1.5 px-3"
@@ -136,6 +140,13 @@ export default function Navbar() {
                   className="block px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-600 rounded-lg transition"
                 >
                   Dashboard
+                </Link>
+                <Link
+                  href="/dashboard/settings"
+                  onClick={() => setMobileOpen(false)}
+                  className="block px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-600 rounded-lg transition"
+                >
+                  Settings
                 </Link>
                 {session.user.role === "admin" && (
                   <>
