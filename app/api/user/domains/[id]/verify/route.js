@@ -11,6 +11,29 @@ const resolveTxt = promisify(dns.resolveTxt);
 
 const MAIL_HOSTNAME = process.env.MAIL_SERVER_HOSTNAME || "mail.yourdomain.com";
 
+// Translate raw DNS error codes into actionable user-facing messages.
+// `type` is "MX" or "TXT" (the record type that failed to resolve).
+function formatDnsError(code, type, domainName) {
+  switch (code) {
+    case "ENODATA":
+    case "NODATA":
+      return `No ${type} record found for ${domainName}. Add the ${type} record above at your DNS provider, then click Verify again. DNS changes can take a few minutes to propagate.`;
+    case "ENOTFOUND":
+      return `Domain ${domainName} doesn't resolve. Make sure the domain is registered and pointed at a name server.`;
+    case "ETIMEOUT":
+    case "ETIMEDOUT":
+      return `${type} lookup timed out. Try again in a moment.`;
+    case "EAI_AGAIN":
+      return `Temporary DNS resolver failure while checking ${type}. Try again in a moment.`;
+    case "ESERVFAIL":
+      return `DNS server returned SERVFAIL for ${type}. Your nameservers may be misconfigured.`;
+    case "EREFUSED":
+      return `DNS server refused the ${type} query. Check your nameserver configuration.`;
+    default:
+      return `${type} lookup failed: ${code || "unknown error"}`;
+  }
+}
+
 // POST /api/user/domains/[id]/verify — verify DNS records for a domain
 export async function POST(request, { params }) {
   try {
@@ -68,7 +91,7 @@ export async function POST(request, { params }) {
       if (!CLEAN_NEGATIVE_CODES.has(err.code)) {
         mxLookupConclusive = false;
       }
-      results.errors.push(`MX lookup failed: ${err.code || err.message}`);
+      results.errors.push(formatDnsError(err.code, "MX", domain.name));
     }
 
     // ---- Check TXT Verification Record ----
@@ -88,7 +111,7 @@ export async function POST(request, { params }) {
       if (!CLEAN_NEGATIVE_CODES.has(err.code)) {
         txtLookupConclusive = false;
       }
-      results.errors.push(`TXT lookup failed: ${err.code || err.message}`);
+      results.errors.push(formatDnsError(err.code, "TXT", domain.name));
     }
 
     // ---- Update domain status ----
