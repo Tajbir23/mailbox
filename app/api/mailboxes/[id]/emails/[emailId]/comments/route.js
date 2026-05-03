@@ -47,16 +47,59 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: "Comment too long (max 2000 chars)" }, { status: 400 });
     }
 
+    const now = new Date();
     ctx.email.comments.push({
       userId,
       userName: session.user.name || session.user.email || "User",
       text,
-      createdAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
     });
     await ctx.email.save();
 
     const created = ctx.email.comments[ctx.email.comments.length - 1];
     return NextResponse.json({ success: true, comment: created });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+// PATCH /api/mailboxes/[id]/emails/[emailId]/comments
+//   Body: { commentId, text } — only the comment author can edit
+export async function PATCH(request, { params }) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    await dbConnect();
+    const { id, emailId } = params;
+    const userId = session.user.id;
+
+    const body = await request.json().catch(() => ({}));
+    const commentId = body.commentId;
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (!commentId) return NextResponse.json({ error: "commentId required" }, { status: 400 });
+    if (!text) return NextResponse.json({ error: "Comment text required" }, { status: 400 });
+    if (text.length > 2000) {
+      return NextResponse.json({ error: "Comment too long (max 2000 chars)" }, { status: 400 });
+    }
+
+    const ctx = await getAuthorizedEmail(emailId, id, userId);
+    if (ctx.error) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
+    const comment = ctx.email.comments.id(commentId);
+    if (!comment) return NextResponse.json({ error: "Comment not found" }, { status: 404 });
+
+    if (String(comment.userId) !== String(userId)) {
+      return NextResponse.json({ error: "Only the author can edit this comment" }, { status: 403 });
+    }
+
+    comment.text = text;
+    comment.updatedAt = new Date();
+    await ctx.email.save();
+
+    return NextResponse.json({ success: true, comment });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

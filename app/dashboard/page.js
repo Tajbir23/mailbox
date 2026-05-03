@@ -115,6 +115,7 @@ export default function DashboardPage() {
             mailboxes={mailboxes}
             userId={session?.user?.id}
             onUpdate={fetchMailboxes}
+            expandHref="/dashboard/mailboxes"
           />
         </div>
       </div>

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import io from "socket.io-client";
 import ShareModal from "./ShareModal";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
+import { makeMatcher } from "@/lib/search";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -380,27 +381,27 @@ function MailboxActions({ mb, onUpdate, onDelete }) {
   );
 }
 
-export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpdate }) {
+export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpdate, expandHref = null }) {
   const [shareTarget, setShareTarget] = useState(null);
   const [mailboxes, setMailboxes] = useState(initialMailboxes);
   const [copiedId, setCopiedId] = useState(null);
-  const [fullscreen, setFullscreen] = useState(false);
+  const [search, setSearch] = useState("");
   const socketRef = useRef(null);
 
-  // Lock body scroll while fullscreen
-  useEffect(() => {
-    if (!fullscreen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e) => {
-      if (e.key === "Escape") setFullscreen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [fullscreen]);
+  const filteredMailboxes = useMemo(() => {
+    const match = makeMatcher(search);
+    if (!search.trim()) return mailboxes;
+    return mailboxes.filter((mb) =>
+      match(
+        mb.emailAddress,
+        mb.lastEmail?.subject,
+        mb.lastEmail?.from,
+        mb.ownerId?.name,
+        mb.ownerId?.email,
+        mb.tags
+      )
+    );
+  }, [mailboxes, search]);
 
   const copyEmail = (email, id) => {
     navigator.clipboard.writeText(email).then(() => {
@@ -437,19 +438,7 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
 
   return (
     <>
-      {fullscreen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-fade-in"
-          onClick={() => setFullscreen(false)}
-        />
-      )}
-      <div
-        className={
-          fullscreen
-            ? "fixed inset-3 sm:inset-6 z-50 card overflow-hidden flex flex-col animate-scale-in"
-            : "card overflow-hidden"
-        }
-      >
+      <div className="card overflow-hidden">
         <div className="px-6 py-5 border-b border-surface-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
@@ -459,28 +448,51 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
             </div>
             <div>
               <h2 className="text-base font-semibold text-surface-800">My Mailboxes</h2>
-              <p className="text-xs text-surface-400">{mailboxes.length} mailbox{mailboxes.length !== 1 ? "es" : ""}</p>
+              <p className="text-xs text-surface-400">
+                {search.trim() ? `${filteredMailboxes.length} of ${mailboxes.length}` : `${mailboxes.length} mailbox${mailboxes.length !== 1 ? "es" : ""}`}
+              </p>
             </div>
           </div>
-          <button
-            onClick={() => setFullscreen((v) => !v)}
-            title={fullscreen ? "Exit fullscreen (Esc)" : "Expand to fullscreen"}
-            className="p-2 rounded-xl hover:bg-surface-100 transition-all text-surface-400 hover:text-surface-700"
-          >
-            {fullscreen ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-              </svg>
-            ) : (
+          {expandHref && (
+            <Link
+              href={expandHref}
+              title="Open full mailboxes view"
+              className="p-2 rounded-xl hover:bg-surface-100 transition-all text-surface-400 hover:text-surface-700"
+            >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
               </svg>
-            )}
-          </button>
+            </Link>
+          )}
         </div>
 
+        {/* Search bar — supports regex; falls back to literal substring on invalid pattern */}
+        {mailboxes.length > 0 && (
+          <div className="px-6 py-3 border-b border-surface-100 bg-white">
+            <div className="relative">
+              <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search address, sender, tag… (regex supported)"
+                className="w-full pl-9 pr-8 py-2 text-sm rounded-xl bg-surface-50 border border-surface-100 focus:bg-white focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100 transition-all"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  title="Clear"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {mailboxes.length === 0 ? (
-          <div className={`px-6 py-16 text-center ${fullscreen ? "flex-1 flex flex-col items-center justify-center" : ""}`}>
+          <div className="px-6 py-16 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-surface-50 flex items-center justify-center">
               <svg className="w-8 h-8 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -489,9 +501,14 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
             <p className="text-sm text-surface-400">No mailboxes yet</p>
             <p className="text-xs text-surface-300 mt-1">Create one to start receiving emails</p>
           </div>
+        ) : filteredMailboxes.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <p className="text-sm text-surface-400">No matches</p>
+            <p className="text-xs text-surface-300 mt-1">Try a different search term</p>
+          </div>
         ) : (
-          <ul className={`divide-y divide-surface-50 ${fullscreen ? "flex-1 overflow-y-auto" : ""}`}>
-            {mailboxes.map((mb) => {
+          <ul className="divide-y divide-surface-50">
+            {filteredMailboxes.map((mb) => {
               const isOwner = mb.ownerId?._id === userId;
               const unread = mb.unreadCount || 0;
               const lastEmail = mb.lastEmail;

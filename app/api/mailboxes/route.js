@@ -32,7 +32,7 @@ export async function GET() {
     const mailboxIds = mailboxes.map((mb) => mb._id);
     const userObjId = new mongoose.Types.ObjectId(userId);
 
-    const [lastEmails, unreadCounts] = await Promise.all([
+    const [lastEmails, unreadCounts, tagsByMailbox] = await Promise.all([
       // Get last email per mailbox using aggregation
       IncomingEmail.aggregate([
         { $match: { mailboxId: { $in: mailboxIds }, deletedFor: { $ne: userObjId } } },
@@ -57,6 +57,13 @@ export async function GET() {
         { $match: { mailboxId: { $in: mailboxIds }, isRead: false, deletedFor: { $ne: userObjId } } },
         { $group: { _id: "$mailboxId", count: { $sum: 1 } } },
       ]),
+      // Collect unique tags across all visible emails per mailbox (for tag-based search)
+      IncomingEmail.aggregate([
+        { $match: { mailboxId: { $in: mailboxIds }, deletedFor: { $ne: userObjId }, tags: { $exists: true, $ne: [] } } },
+        { $unwind: "$tags" },
+        { $group: { _id: { mailboxId: "$mailboxId", tag: "$tags" } } },
+        { $group: { _id: "$_id.mailboxId", tags: { $push: "$_id.tag" } } },
+      ]),
     ]);
 
     // Build lookup maps
@@ -68,12 +75,17 @@ export async function GET() {
     for (const item of unreadCounts) {
       unreadMap[item._id.toString()] = item.count;
     }
+    const tagsMap = {};
+    for (const item of tagsByMailbox) {
+      tagsMap[item._id.toString()] = item.tags;
+    }
 
     // Attach to mailboxes
     const enriched = mailboxes.map((mb) => ({
       ...mb,
       lastEmail: lastEmailMap[mb._id.toString()] || null,
       unreadCount: unreadMap[mb._id.toString()] || 0,
+      tags: tagsMap[mb._id.toString()] || [],
     }));
 
     return NextResponse.json(enriched);
