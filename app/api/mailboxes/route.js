@@ -89,7 +89,7 @@ export async function POST(request) {
     }
 
     await dbConnect();
-    const { prefix, domainId } = await request.json();
+    const { prefix, domainId, isPublic } = await request.json();
 
     if (!prefix || !domainId) {
       return NextResponse.json(
@@ -133,6 +133,7 @@ export async function POST(request) {
       emailAddress,
       domainId: domain._id,
       ownerId: session.user.id,
+      isPublic: Boolean(isPublic),
     });
 
     const populated = await Mailbox.findById(mailbox._id)

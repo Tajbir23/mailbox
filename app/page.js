@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PublicInboxSaver from "@/components/PublicInboxSaver";
 
 export const metadata = {
   title: "MailboxSaaS — Self-Hosted Receive-Only Email Platform",
@@ -85,6 +86,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ── Public Mailbox Saver ── */}
+      <PublicInboxSaver />
 
       {/* ── Features Section ── */}
       <section className="py-20 sm:py-28" aria-label="Features">

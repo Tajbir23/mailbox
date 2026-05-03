@@ -113,6 +113,17 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: "Expiry set", expiresAt: mailbox.expiresAt });
     }
 
+    // Toggle public access
+    if (body.action === "setPublic") {
+      mailbox.isPublic = Boolean(body.isPublic);
+      await mailbox.save();
+      return NextResponse.json({
+        success: true,
+        message: mailbox.isPublic ? "Mailbox is now public" : "Mailbox is now private",
+        isPublic: mailbox.isPublic,
+      });
+    }
+
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (err) {
     console.error(err);

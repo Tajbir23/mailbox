@@ -6,6 +6,7 @@ export default function CreateMailboxForm({ onCreated }) {
   const [domains, setDomains] = useState([]);
   const [prefix, setPrefix] = useState("");
   const [domainId, setDomainId] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -30,7 +31,7 @@ export default function CreateMailboxForm({ onCreated }) {
       const res = await fetch("/api/mailboxes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prefix, domainId }),
+        body: JSON.stringify({ prefix, domainId, isPublic }),
       });
 
       const data = await res.json();
@@ -41,6 +42,7 @@ export default function CreateMailboxForm({ onCreated }) {
 
       setSuccess(`Created ${data.emailAddress}`);
       setPrefix("");
+      setIsPublic(false);
       if (onCreated) onCreated(data);
     } catch {
       setError("Network error");
@@ -122,6 +124,26 @@ export default function CreateMailboxForm({ onCreated }) {
             )}
           </div>
         )}
+
+        <label className="flex items-start gap-3 px-3 py-3 bg-surface-50/60 border border-surface-100 rounded-xl cursor-pointer hover:bg-surface-50 transition">
+          <input
+            type="checkbox"
+            checked={isPublic}
+            onChange={(e) => setIsPublic(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-brand-500 cursor-pointer"
+          />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-surface-800 flex items-center gap-1.5">
+              Public Access
+              <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </p>
+            <p className="text-xs text-surface-500 mt-0.5">
+              Anyone can view this mailbox&apos;s emails from the home page without an account. Use only for disposable / shareable inboxes.
+            </p>
+          </div>
+        </label>
 
         <button
           type="submit"
