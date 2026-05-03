@@ -52,8 +52,9 @@ export async function GET(request, { params }) {
   }
 }
 
-// DELETE /api/mailboxes/[id]/emails?emailId=... – hide email from caller's history.
-// The document is preserved so other shared users keep seeing it.
+// DELETE /api/mailboxes/[id]/emails
+//   Body: { emailIds: string[] }  (or query ?emailId=... for a single id)
+// Owner → hard delete (gone for everyone). Shared user → hide from own history only.
 export async function DELETE(request, { params }) {
   try {
     const session = await getServerSession(authOptions);
@@ -65,13 +66,20 @@ export async function DELETE(request, { params }) {
     const { id } = params;
     const userId = session.user.id;
 
+    let emailIds = [];
     const { searchParams } = new URL(request.url);
-    const emailId = searchParams.get("emailId");
-    if (!emailId) {
-      return NextResponse.json({ error: "emailId is required" }, { status: 400 });
+    const singleId = searchParams.get("emailId");
+    if (singleId) {
+      emailIds = [singleId];
+    } else {
+      const body = await request.json().catch(() => ({}));
+      if (Array.isArray(body.emailIds)) emailIds = body.emailIds;
+    }
+    emailIds = emailIds.filter(Boolean);
+    if (emailIds.length === 0) {
+      return NextResponse.json({ error: "emailIds is required" }, { status: 400 });
     }
 
-    // User must be owner or in sharedWith to clear from their own history
     const mailbox = await Mailbox.findOne({
       _id: id,
       $or: [{ ownerId: userId }, { sharedWith: userId }],
@@ -83,15 +91,29 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    const result = await IncomingEmail.updateOne(
-      { _id: emailId, mailboxId: id },
-      { $addToSet: { deletedFor: userId } }
-    );
-    if (result.matchedCount === 0) {
-      return NextResponse.json({ error: "Email not found" }, { status: 404 });
+    const isOwner = mailbox.ownerId.toString() === userId;
+
+    if (isOwner) {
+      const result = await IncomingEmail.deleteMany({
+        _id: { $in: emailIds },
+        mailboxId: id,
+      });
+      return NextResponse.json({
+        success: true,
+        scope: "all",
+        affected: result.deletedCount,
+      });
     }
 
-    return NextResponse.json({ success: true });
+    const result = await IncomingEmail.updateMany(
+      { _id: { $in: emailIds }, mailboxId: id },
+      { $addToSet: { deletedFor: userId } }
+    );
+    return NextResponse.json({
+      success: true,
+      scope: "self",
+      affected: result.modifiedCount,
+    });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

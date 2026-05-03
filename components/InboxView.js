@@ -84,14 +84,28 @@ function senderInitial(from) {
   return (name[0] || "?").toUpperCase();
 }
 
-export default function InboxView({ mailboxId }) {
+export default function InboxView({ mailboxId, isOwner = false }) {
   const [emails, setEmails] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newEmailAlert, setNewEmailAlert] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
   const socketRef = useRef(null);
   const pollRef = useRef(null);
+
+  const toggleSelect = useCallback((emailId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(emailId)) next.delete(emailId);
+      else next.add(emailId);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
 
   // Fetch emails
   const fetchEmails = useCallback(async () => {
@@ -186,25 +200,37 @@ export default function InboxView({ mailboxId }) {
     }
   }, [emails, mailboxId]);
 
-  // Remove an email from the current user's inbox history.
-  // Other shared users keep seeing it; the document is preserved.
-  const deleteEmail = useCallback(
-    async (emailId) => {
-      if (!emailId || deleting) return;
-      if (!confirm("Remove this email from your inbox? Other users with access will still see it.")) return;
+  // Remove emails. Owner → permanent delete for everyone.
+  // Shared user → hide from their own inbox only. Accepts one id or many.
+  const deleteEmails = useCallback(
+    async (ids) => {
+      const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
+      if (list.length === 0 || deleting) return;
+      const noun = list.length > 1 ? `these ${list.length} emails` : "this email";
+      const message = isOwner
+        ? `Permanently delete ${noun} for everyone? This cannot be undone.`
+        : `Remove ${noun} from your inbox? Other users with access will still see ${list.length > 1 ? "them" : "it"}.`;
+      if (!confirm(message)) return;
       setDeleting(true);
       try {
-        const res = await fetch(
-          `/api/mailboxes/${mailboxId}/emails?emailId=${encodeURIComponent(emailId)}`,
-          { method: "DELETE" }
-        );
+        const res = await fetch(`/api/mailboxes/${mailboxId}/emails`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emailIds: list }),
+        });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           alert(data.error || "Failed to delete email");
           return;
         }
-        setEmails((prev) => prev.filter((e) => e._id !== emailId));
-        setSelected((cur) => (cur?._id === emailId ? null : cur));
+        const removed = new Set(list);
+        setEmails((prev) => prev.filter((e) => !removed.has(e._id)));
+        setSelected((cur) => (cur && removed.has(cur._id) ? null : cur));
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          for (const id of list) next.delete(id);
+          return next;
+        });
       } catch (err) {
         console.error("Failed to delete email:", err);
         alert("Failed to delete email");
@@ -212,7 +238,7 @@ export default function InboxView({ mailboxId }) {
         setDeleting(false);
       }
     },
-    [mailboxId, deleting]
+    [mailboxId, deleting, isOwner]
   );
 
   const unreadCount = emails.filter((e) => !e.isRead).length;
@@ -242,26 +268,53 @@ export default function InboxView({ mailboxId }) {
       <div className="flex flex-col md:flex-row flex-1 card overflow-hidden">
         {/* Email list sidebar */}
         <div className="w-full md:w-[340px] lg:w-[380px] border-b md:border-b-0 md:border-r border-surface-100 overflow-y-auto shrink-0 max-h-[40vh] md:max-h-none">
-          {/* Header with unread count */}
+          {/* Header — switches to a bulk action bar when emails are selected */}
           <div className="px-5 py-4 border-b border-surface-100 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-sm z-10">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-brand-50 flex items-center justify-center">
-                <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-2.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
-              </div>
-              <span className="text-sm font-semibold text-surface-800">Inbox</span>
-              {unreadCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 text-xs font-bold text-white bg-gradient-to-r from-red-500 to-rose-500 rounded-full shadow-sm">
-                  {unreadCount}
-                </span>
-              )}
-            </div>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="text-xs text-brand-600 hover:text-brand-700 font-semibold hover:bg-brand-50 px-2.5 py-1.5 rounded-lg transition-all"
-              >
-                Mark all read
-              </button>
+            {selectedIds.size > 0 ? (
+              <>
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    onClick={clearSelection}
+                    title="Clear selection"
+                    className="w-8 h-8 rounded-xl bg-surface-100 hover:bg-surface-200 flex items-center justify-center text-surface-500 hover:text-surface-700 transition-all shrink-0"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                  <span className="text-sm font-semibold text-surface-800 truncate">
+                    {selectedIds.size} selected
+                  </span>
+                </div>
+                <button
+                  onClick={() => deleteEmails(Array.from(selectedIds))}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" /></svg>
+                  {deleting ? (isOwner ? "Deleting…" : "Removing…") : isOwner ? "Delete" : "Remove"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-brand-50 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-2.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+                  </div>
+                  <span className="text-sm font-semibold text-surface-800">Inbox</span>
+                  {unreadCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 text-xs font-bold text-white bg-gradient-to-r from-red-500 to-rose-500 rounded-full shadow-sm">
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="text-xs text-brand-600 hover:text-brand-700 font-semibold hover:bg-brand-50 px-2.5 py-1.5 rounded-lg transition-all"
+                  >
+                    Mark all read
+                  </button>
+                )}
+              </>
             )}
           </div>
 
@@ -280,24 +333,52 @@ export default function InboxView({ mailboxId }) {
             </div>
           ) : (
             <ul>
-              {emails.map((email) => (
+              {emails.map((email) => {
+                const isChecked = selectedIds.has(email._id);
+                const inSelectionMode = selectedIds.size > 0;
+                return (
                 <li
                   key={email._id}
-                  onClick={() => handleSelectEmail(email)}
+                  onClick={() => {
+                    if (inSelectionMode) toggleSelect(email._id);
+                    else handleSelectEmail(email);
+                  }}
                   className={`px-5 py-4 cursor-pointer transition-all relative group border-b border-surface-50 ${
-                    selected?._id === email._id
+                    isChecked
+                      ? "bg-red-50/40 border-l-[3px] border-l-red-400"
+                      : selected?._id === email._id
                       ? "bg-brand-50/60 border-l-[3px] border-l-brand-500"
                       : "hover:bg-surface-50 border-l-[3px] border-l-transparent"
-                  } ${!email.isRead ? "bg-blue-50/30" : ""}`}
+                  } ${!email.isRead && !isChecked ? "bg-blue-50/30" : ""}`}
                 >
                   <div className="flex gap-3">
-                    {/* Sender avatar */}
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-sm font-bold ${
-                      !email.isRead
-                        ? "bg-gradient-to-br from-brand-500 to-purple-600 text-white shadow-brand-sm"
-                        : "bg-surface-100 text-surface-500"
-                    }`}>
-                      {senderInitial(email.from)}
+                    {/* Avatar / checkbox — checkbox replaces avatar on hover or in selection mode */}
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelect(email._id);
+                      }}
+                      title={isChecked ? "Deselect" : "Select"}
+                      className={`relative w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-sm font-bold ${
+                        !email.isRead
+                          ? "bg-gradient-to-br from-brand-500 to-purple-600 text-white shadow-brand-sm"
+                          : "bg-surface-100 text-surface-500"
+                      }`}
+                    >
+                      <span className={`${inSelectionMode || isChecked ? "opacity-0" : "group-hover:opacity-0"} transition-opacity`}>
+                        {senderInitial(email.from)}
+                      </span>
+                      <span
+                        className={`absolute inset-0 flex items-center justify-center rounded-xl border transition-all ${
+                          isChecked
+                            ? "bg-red-500 border-red-500 text-white opacity-100"
+                            : `bg-white border-surface-300 text-transparent ${
+                                inSelectionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                              }`
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                      </span>
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -325,7 +406,8 @@ export default function InboxView({ mailboxId }) {
                     </div>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
@@ -346,13 +428,13 @@ export default function InboxView({ mailboxId }) {
                         {selected.subject || "(No Subject)"}
                       </h2>
                       <button
-                        onClick={() => deleteEmail(selected._id)}
+                        onClick={() => deleteEmails(selected._id)}
                         disabled={deleting}
-                        title="Remove from your inbox"
+                        title={isOwner ? "Delete for everyone" : "Remove from your inbox"}
                         className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" /></svg>
-                        {deleting ? "Removing…" : "Remove"}
+                        {deleting ? (isOwner ? "Deleting…" : "Removing…") : isOwner ? "Delete" : "Remove"}
                       </button>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
