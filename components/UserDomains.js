@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/components/Toast";
 
 export default function UserDomains() {
+  const toast = useToast();
   const [domains, setDomains] = useState([]);
   const [newDomain, setNewDomain] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [expandedId, setExpandedId] = useState(null);
   const [dnsInfo, setDnsInfo] = useState({});
   const [verifying, setVerifying] = useState(null);
@@ -53,8 +53,6 @@ export default function UserDomains() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
     setLoading(true);
 
     try {
@@ -66,11 +64,11 @@ export default function UserDomains() {
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to add domain");
+        toast.error(data.error || "Failed to add domain");
         return;
       }
 
-      setSuccess(`Domain "${data.name}" added! Configure DNS records below.`);
+      toast.success(`"${data.name}" added — configure DNS records below`);
       setNewDomain("");
       fetchDomains();
       // Auto-expand the new domain
@@ -79,7 +77,7 @@ export default function UserDomains() {
         loadDnsInfo(data._id);
       }, 300);
     } catch {
-      setError("Network error");
+      toast.error("Network error");
     } finally {
       setLoading(false);
     }
@@ -104,9 +102,17 @@ export default function UserDomains() {
         },
       }));
 
+      if (data.verificationStatus === "verified") {
+        toast.success("Domain verified");
+      } else if (data.results?.errors?.length > 0) {
+        toast.error("Verification failed — check DNS records");
+      } else {
+        toast.info("Verification still pending");
+      }
+
       fetchDomains();
     } catch {
-      setError("Verification failed");
+      toast.error("Verification failed");
     } finally {
       setVerifying(null);
     }
@@ -122,27 +128,37 @@ export default function UserDomains() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to update visibility");
+        toast.error(data.error || "Failed to update visibility");
         return;
       }
+      toast.success(`Domain is now ${newVisibility}`);
       fetchDomains();
     } catch {
-      setError("Network error");
+      toast.error("Network error");
     }
   };
 
   const handleDelete = async (id, name) => {
-    if (!confirm(`Delete "${name}"? Mailboxes on this domain will stop receiving emails.`))
-      return;
+    const ok = await toast.confirm({
+      title: "Delete domain?",
+      message: `"${name}" will be removed. Mailboxes on this domain will stop receiving emails.`,
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/user/domains?id=${id}`, { method: "DELETE" });
       if (res.ok) {
         fetchDomains();
         if (expandedId === id) setExpandedId(null);
+        toast.success(`"${name}" deleted`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to delete domain");
       }
     } catch {
-      setError("Failed to delete domain");
+      toast.error("Failed to delete domain");
     }
   };
 
@@ -199,20 +215,6 @@ export default function UserDomains() {
           Add Domain
         </button>
       </form>
-
-      {/* Alerts */}
-      {error && (
-        <div className="mb-4 flex items-center gap-2 px-3.5 py-2.5 bg-red-50 border border-red-200/50 rounded-xl text-sm text-red-600">
-          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="mb-4 flex items-center gap-2 px-3.5 py-2.5 bg-green-50 border border-green-200/50 rounded-xl text-sm text-green-600">
-          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-          {success}
-        </div>
-      )}
 
       {/* Domain list */}
       {domains.length === 0 ? (

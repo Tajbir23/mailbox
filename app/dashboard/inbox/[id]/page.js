@@ -68,6 +68,7 @@ export default function InboxPage() {
       <InboxView
         mailboxId={mailboxId}
         isOwner={mailbox?.ownerId?._id === session?.user?.id}
+        currentUserId={session?.user?.id || null}
       />
     </div>
   );

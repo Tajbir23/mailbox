@@ -3,9 +3,11 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/components/Toast";
 
 export default function AdminDomainsPage() {
   const { data: session, status } = useSession();
+  const toast = useToast();
   const router = useRouter();
   const [domains, setDomains] = useState([]);
   const [newDomain, setNewDomain] = useState("");
@@ -96,11 +98,22 @@ export default function AdminDomainsPage() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this domain? Existing mailboxes will stop receiving emails."))
-      return;
+    const ok = await toast.confirm({
+      title: "Delete domain?",
+      message: "Existing mailboxes will stop receiving emails.",
+      confirmText: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
 
-    await fetch(`/api/admin/domains?id=${id}`, { method: "DELETE" });
-    fetchDomains();
+    const res = await fetch(`/api/admin/domains?id=${id}`, { method: "DELETE" });
+    if (res.ok) {
+      toast.success("Domain deleted");
+      fetchDomains();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error || "Failed to delete domain");
+    }
   };
 
   if (status === "loading") {
