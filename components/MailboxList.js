@@ -386,7 +386,14 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
   const [mailboxes, setMailboxes] = useState(initialMailboxes);
   const [copiedId, setCopiedId] = useState(null);
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const socketRef = useRef(null);
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   const filteredMailboxes = useMemo(() => {
     const match = makeMatcher(search);
@@ -402,7 +409,12 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
       )
     );
   }, [mailboxes, search]);
-
+  const totalPages = Math.ceil(filteredMailboxes.length / itemsPerPage);
+  
+  const paginatedMailboxes = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredMailboxes.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredMailboxes, currentPage]);
   const copyEmail = (email, id) => {
     navigator.clipboard.writeText(email).then(() => {
       setCopiedId(id);
@@ -507,11 +519,12 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
             <p className="text-xs text-surface-300 mt-1">Try a different search term</p>
           </div>
         ) : (
-          <ul className="divide-y divide-surface-50">
-            {filteredMailboxes.map((mb) => {
-              const isOwner = mb.ownerId?._id === userId;
-              const unread = mb.unreadCount || 0;
-              const lastEmail = mb.lastEmail;
+          <div className="flex flex-col">
+            <ul className="divide-y divide-surface-50">
+              {paginatedMailboxes.map((mb) => {
+                const isOwner = mb.ownerId?._id === userId;
+                const unread = mb.unreadCount || 0;
+                const lastEmail = mb.lastEmail;
 
               return (
                 <li key={mb._id} className="group px-4 sm:px-6 py-4 hover:bg-surface-50/60 transition-all duration-200">
@@ -636,6 +649,38 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
               );
             })}
           </ul>
+          
+          {totalPages > 1 && (
+            <div className="px-6 py-4 flex items-center justify-between border-t border-surface-50 bg-surface-50/30">
+              <p className="text-sm text-surface-500">
+                Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredMailboxes.length)}</span> of <span className="font-medium">{filteredMailboxes.length}</span> mailboxes
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded-lg border border-surface-200 text-surface-600 hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <div className="px-3 text-sm font-medium text-surface-700">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded-lg border border-surface-200 text-surface-600 hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+          </div>
         )}
       </div>
 
