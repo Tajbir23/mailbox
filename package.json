@@ -8,6 +8,7 @@
     "start": "next start",
     "smtp": "node smtp-server/smtp.js",
     "seed": "node scripts/seed-admin.js",
+    "verify-domains": "node scripts/verify-domains.js",
     "setup": "sudo bash scripts/setup.sh",
     "deploy": "sudo bash scripts/deploy.sh"
   },

@@ -14,6 +14,7 @@ export default function AdminDomainsPage() {
   const [visibility, setVisibility] = useState("public");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [verifyingId, setVerifyingId] = useState(null);
 
   const fetchDomains = useCallback(async () => {
     try {
@@ -95,6 +96,32 @@ export default function AdminDomainsPage() {
       body: JSON.stringify({ id, isWebsiteApproved: isApproved }),
     });
     fetchDomains();
+  };
+
+  const handleVerify = async (id) => {
+    setVerifyingId(id);
+    try {
+      const res = await fetch(`/api/admin/domains/${id}/verify`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Verification failed");
+        return;
+      }
+      const status = data.verificationStatus;
+      const errors = data.results?.errors || [];
+      if (status === "verified") {
+        toast.success("DNS verified");
+      } else if (errors.length > 0) {
+        toast.error(errors[0]);
+      } else {
+        toast.info("Verification still pending");
+      }
+      fetchDomains();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setVerifyingId(null);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -260,6 +287,19 @@ export default function AdminDomainsPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => handleVerify(d._id)}
+                      disabled={verifyingId === d._id}
+                      title="Run DNS verification now"
+                      className="btn-ghost !text-xs !py-1.5 !px-3 !rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {verifyingId === d._id ? (
+                        <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      )}
+                      {verifyingId === d._id ? "Checking…" : "Verify DNS"}
+                    </button>
                     {!d.isWebsiteApproved ? (
                       <button
                         onClick={() => handleApproveWebsite(d._id, true)}
