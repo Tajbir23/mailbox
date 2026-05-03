@@ -95,6 +95,8 @@ async function verifyOne(domain) {
   }
 
   const previous = domain.verificationStatus;
+  if (!domain.dnsRecords) domain.dnsRecords = {};
+
   if (mxOk && txtOk) {
     domain.dnsRecords.mxVerified = true;
     domain.dnsRecords.txtVerified = true;
