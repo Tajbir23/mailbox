@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Domain from '@/lib/models/Domain';
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const domain = searchParams.get('domain');

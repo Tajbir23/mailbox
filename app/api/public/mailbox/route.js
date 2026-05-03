@@ -3,6 +3,8 @@ import dbConnect from "@/lib/mongodb";
 import Mailbox from "@/lib/models/Mailbox";
 import { rateLimit } from "@/lib/rate-limit";
 
+export const dynamic = "force-dynamic";
+
 const limiter = rateLimit({ interval: 60_000, uniqueTokenPerInterval: 1000 });
 
 // GET /api/public/mailbox?email=foo@bar.com – verify a mailbox exists and is public
