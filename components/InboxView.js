@@ -89,6 +89,7 @@ export default function InboxView({ mailboxId }) {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newEmailAlert, setNewEmailAlert] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const socketRef = useRef(null);
   const pollRef = useRef(null);
 
@@ -184,6 +185,35 @@ export default function InboxView({ mailboxId }) {
       console.error("Failed to mark all as read:", err);
     }
   }, [emails, mailboxId]);
+
+  // Remove an email from the current user's inbox history.
+  // Other shared users keep seeing it; the document is preserved.
+  const deleteEmail = useCallback(
+    async (emailId) => {
+      if (!emailId || deleting) return;
+      if (!confirm("Remove this email from your inbox? Other users with access will still see it.")) return;
+      setDeleting(true);
+      try {
+        const res = await fetch(
+          `/api/mailboxes/${mailboxId}/emails?emailId=${encodeURIComponent(emailId)}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || "Failed to delete email");
+          return;
+        }
+        setEmails((prev) => prev.filter((e) => e._id !== emailId));
+        setSelected((cur) => (cur?._id === emailId ? null : cur));
+      } catch (err) {
+        console.error("Failed to delete email:", err);
+        alert("Failed to delete email");
+      } finally {
+        setDeleting(false);
+      }
+    },
+    [mailboxId, deleting]
+  );
 
   const unreadCount = emails.filter((e) => !e.isRead).length;
 
@@ -311,9 +341,20 @@ export default function InboxView({ mailboxId }) {
                     {senderInitial(selected.from)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-lg font-bold text-surface-900 mb-2 leading-tight">
-                      {selected.subject || "(No Subject)"}
-                    </h2>
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <h2 className="text-lg font-bold text-surface-900 leading-tight">
+                        {selected.subject || "(No Subject)"}
+                      </h2>
+                      <button
+                        onClick={() => deleteEmail(selected._id)}
+                        disabled={deleting}
+                        title="Remove from your inbox"
+                        className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" /></svg>
+                        {deleting ? "Removing…" : "Remove"}
+                      </button>
+                    </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                       <span className="text-surface-700 break-all">
                         <span className="text-surface-400 text-xs uppercase tracking-wider mr-1">From</span>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import mongoose from "mongoose";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import Mailbox from "@/lib/models/Mailbox";
@@ -26,13 +27,15 @@ export async function GET() {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Fetch last email and unread count for each mailbox
+    // Fetch last email and unread count for each mailbox.
+    // Exclude emails the current user has cleared from their own history.
     const mailboxIds = mailboxes.map((mb) => mb._id);
+    const userObjId = new mongoose.Types.ObjectId(userId);
 
     const [lastEmails, unreadCounts] = await Promise.all([
       // Get last email per mailbox using aggregation
       IncomingEmail.aggregate([
-        { $match: { mailboxId: { $in: mailboxIds } } },
+        { $match: { mailboxId: { $in: mailboxIds }, deletedFor: { $ne: userObjId } } },
         { $sort: { receivedAt: -1 } },
         {
           $group: {
@@ -51,7 +54,7 @@ export async function GET() {
       ]),
       // Get unread count per mailbox
       IncomingEmail.aggregate([
-        { $match: { mailboxId: { $in: mailboxIds }, isRead: false } },
+        { $match: { mailboxId: { $in: mailboxIds }, isRead: false, deletedFor: { $ne: userObjId } } },
         { $group: { _id: "$mailboxId", count: { $sum: 1 } } },
       ]),
     ]);
