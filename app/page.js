@@ -1,5 +1,6 @@
 import Link from "next/link";
-import PublicInboxSaver from "@/components/PublicInboxSaver";
+import PublicMailboxAdder from "@/components/PublicMailboxAdder";
+import PublicMailboxInbox from "@/components/PublicMailboxInbox";
 
 export const metadata = {
   title: "MailboxSaaS — Self-Hosted Receive-Only Email Platform",
@@ -37,58 +38,28 @@ export default function Home() {
             share with your team, and own your data completely.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up" style={{ animationDelay: "0.3s" }}>
-            <Link href="/register" className="btn-primary text-base px-8 py-3.5 rounded-2xl shadow-brand-lg hover:shadow-brand-lg">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Public mailbox adder — input box at the very top */}
+          <div className="mb-6 animate-slide-up" style={{ animationDelay: "0.3s" }}>
+            <PublicMailboxAdder />
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center animate-slide-up" style={{ animationDelay: "0.5s" }}>
+            <span className="text-xs text-surface-400 uppercase tracking-wider">or</span>
+            <Link href="/register" className="btn-primary text-sm px-6 py-2.5 rounded-2xl">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              Start for Free
+              Create Free Account
             </Link>
-            <Link href="/login" className="btn-secondary text-base px-8 py-3.5 rounded-2xl">
+            <Link href="/login" className="btn-secondary text-sm px-6 py-2.5 rounded-2xl">
               Sign In
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
             </Link>
-          </div>
-        </div>
-
-        {/* Floating email preview mockup */}
-        <div className="relative z-10 mt-16 w-full max-w-3xl mx-auto animate-slide-up" style={{ animationDelay: "0.5s" }}>
-          <div className="card p-1 shadow-soft-lg animate-glow">
-            <div className="bg-surface-50 rounded-xl p-4 sm:p-6">
-              <div className="flex items-center gap-3 mb-4 pb-3 border-b border-surface-100">
-                <div className="w-3 h-3 rounded-full bg-red-400" />
-                <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                <div className="w-3 h-3 rounded-full bg-green-400" />
-                <span className="ml-2 text-xs text-surface-400 font-mono">inbox@yourdomain.com</span>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { from: "GitHub", subject: "Your pull request has been merged!", time: "2m ago", unread: true },
-                  { from: "Stripe", subject: "Payment received — $49.00", time: "15m ago", unread: true },
-                  { from: "AWS", subject: "Monthly billing statement", time: "1h ago", unread: false },
-                ].map((email, i) => (
-                  <div key={i} className={`flex items-center gap-3 p-3 rounded-lg transition ${email.unread ? "bg-white shadow-sm" : "bg-transparent"}`}>
-                    {email.unread && <span className="w-2 h-2 bg-brand-500 rounded-full shrink-0" />}
-                    {!email.unread && <span className="w-2 h-2 shrink-0" />}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`text-sm truncate ${email.unread ? "font-semibold text-surface-900" : "text-surface-600"}`}>{email.from}</span>
-                        <span className="text-xs text-surface-400 shrink-0">{email.time}</span>
-                      </div>
-                      <p className={`text-xs truncate mt-0.5 ${email.unread ? "text-surface-600" : "text-surface-400"}`}>{email.subject}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
-      {/* ── Public Mailbox Saver ── */}
-      <PublicInboxSaver />
+      {/* ── Saved mailboxes inbox view (below hero) ── */}
+      <PublicMailboxInbox />
 
       {/* ── Features Section ── */}
       <section className="py-20 sm:py-28" aria-label="Features">
