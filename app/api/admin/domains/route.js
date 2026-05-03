@@ -114,6 +114,13 @@ export async function PATCH(request) {
     const update = {};
     if (typeof body.isActive === "boolean") update.isActive = body.isActive;
     if (body.visibility === "public" || body.visibility === "private") update.visibility = body.visibility;
+    if (body.verificationStatus) {
+      update.verificationStatus = body.verificationStatus;
+      if (body.verificationStatus === "verified") {
+        update.verifiedAt = new Date();
+        update.dnsRecords = { mxVerified: true, txtVerified: true };
+      }
+    }
 
     if (!id || Object.keys(update).length === 0) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });

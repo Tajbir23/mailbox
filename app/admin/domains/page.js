@@ -86,6 +86,15 @@ export default function AdminDomainsPage() {
     fetchDomains();
   };
 
+  const handleApprove = async (id) => {
+    await fetch("/api/admin/domains", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, verificationStatus: "verified" }),
+    });
+    fetchDomains();
+  };
+
   const handleDelete = async (id) => {
     if (!confirm("Delete this domain? Existing mailboxes will stop receiving emails."))
       return;
@@ -232,6 +241,14 @@ export default function AdminDomainsPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
+                    {d.verificationStatus !== "verified" && (
+                      <button
+                        onClick={() => handleApprove(d._id)}
+                        className="btn-primary !text-xs !py-1.5 !px-3 !rounded-lg !bg-green-600 hover:!bg-green-700"
+                      >
+                        Approve
+                      </button>
+                    )}
                     <button
                       onClick={() => handleToggle(d._id, d.isActive)}
                       className="btn-ghost !text-xs !py-1.5 !px-3 !rounded-lg"
