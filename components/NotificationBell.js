@@ -8,6 +8,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [closedPopupIds, setClosedPopupIds] = useState([]);
   const dropdownRef = useRef(null);
   const router = useRouter();
 
@@ -45,6 +46,8 @@ export default function NotificationBell() {
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const latestUnread = notifications.find((n) => !n.isRead);
+  const showPopup = latestUnread && !isOpen && !closedPopupIds.includes(latestUnread._id);
 
   const markAsRead = async (id, link) => {
     try {
@@ -91,6 +94,38 @@ export default function NotificationBell() {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
         )}
       </button>
+
+      {/* Floating latest notification popup */}
+      {showPopup && (
+        <div 
+          onClick={() => markAsRead(latestUnread._id, latestUnread.link)}
+          className="absolute top-12 right-0 w-72 bg-white rounded-2xl shadow-brand-xl border border-surface-200 z-40 p-3 cursor-pointer hover:bg-surface-50 transition-all animate-fade-in group"
+        >
+          <div className="flex justify-between items-start gap-2">
+            <div className="flex items-start gap-2.5">
+              <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${
+                latestUnread.type === 'success' ? 'bg-green-500' :
+                latestUnread.type === 'error' ? 'bg-red-500' :
+                'bg-brand-500'
+              }`}></div>
+              <div>
+                <p className="text-xs font-bold text-surface-800 line-clamp-1">{latestUnread.title}</p>
+                <p className="text-[11px] text-surface-500 line-clamp-3 mt-0.5 leading-relaxed">{latestUnread.message}</p>
+              </div>
+            </div>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setClosedPopupIds(prev => [...prev, latestUnread._id]);
+              }}
+              className="text-surface-400 hover:text-surface-600 rounded-lg p-1 shrink-0 bg-surface-100/0 hover:bg-surface-200 transition-colors"
+              title="Dismiss"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-brand-xl border border-surface-100 overflow-hidden z-50 animate-slide-down">
