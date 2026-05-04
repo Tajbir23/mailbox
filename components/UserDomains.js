@@ -83,6 +83,21 @@ export default function UserDomains() {
     }
   };
 
+  const handleRequestHosting = async (domainId) => {
+    try {
+      const res = await fetch(`/api/user/domains/${domainId}/hosting`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to request hosting");
+        return;
+      }
+      toast.success("Website hosting requested! Awaiting admin approval.");
+      fetchDomains(); // refresh state
+    } catch {
+      toast.error("Network error");
+    }
+  };
+
   const handleVerify = async (domainId) => {
     setVerifying(domainId);
     try {
@@ -371,6 +386,52 @@ export default function UserDomains() {
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {/* Website Hosting Request Section */}
+                  {d.verificationStatus === "verified" && (
+                    <div className="border-t border-surface-200 mt-4 pt-4">
+                      {d.websiteStatus === "approved" || d.isWebsiteApproved ? (
+                        <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                          <h4 className="text-sm font-bold text-green-700 mb-2">🎉 Website Hosting Approved</h4>
+                          <p className="text-xs text-green-600 mb-3">Your domain is ready to point to our servers!</p>
+                          <div className="bg-white rounded-lg p-3 border border-green-100 mb-3 space-y-2 text-xs">
+                            <p><strong>Step 1:</strong> Go to your domain registrar's DNS settings.</p>
+                            <p><strong>Step 2:</strong> Add an <code>A Record</code> with the Host <code>@</code> pointing to <code className="bg-surface-100 px-1 rounded text-brand-600">209.74.81.85</code></p>
+                            <p><strong>Step 3:</strong> Wait for DNS to propagate. Your website will be active automatically!</p>
+                          </div>
+                        </div>
+                      ) : d.websiteStatus === "pending" ? (
+                        <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 flex items-center justify-between">
+                          <div>
+                            <h4 className="text-sm font-bold text-amber-700">Hosting Request Pending</h4>
+                            <p className="text-xs text-amber-600">Waiting for admin approval to host your website here.</p>
+                          </div>
+                          <span className="animate-pulse bg-amber-100 text-amber-700 text-xs px-3 py-1 rounded-full font-medium">Pending</span>
+                        </div>
+                      ) : d.websiteStatus === "rejected" ? (
+                        <div className="bg-red-50 rounded-xl p-4 border border-red-200 flex justify-between items-center">
+                          <div>
+                            <h4 className="text-sm font-bold text-red-700">Hosting Request Rejected</h4>
+                            <p className="text-xs text-red-600">Contact support for more details.</p>
+                          </div>
+                          <button onClick={() => handleRequestHosting(d._id)} className="btn-primary !bg-red-600 hover:!bg-red-700 !text-xs !py-1.5 !px-3 !rounded-lg">Request Again</button>
+                        </div>
+                      ) : (
+                        <div className="bg-surface-100/50 rounded-xl p-4 border border-surface-200 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-bold text-surface-800">Want to host your Custom Website?</h4>
+                            <p className="text-xs text-surface-500">Request permission to use our servers for your site.</p>
+                          </div>
+                          <button
+                            onClick={() => handleRequestHosting(d._id)}
+                            className="bg-brand-600 hover:bg-brand-700 text-white text-xs px-4 py-2 rounded-lg font-medium transition-all"
+                          >
+                            Request Hosting
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 

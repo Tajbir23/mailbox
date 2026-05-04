@@ -115,6 +115,7 @@ export async function PATCH(request) {
     const update = {};
     if (typeof body.isActive === "boolean") update.isActive = body.isActive;
     if (typeof body.isWebsiteApproved === "boolean") update.isWebsiteApproved = body.isWebsiteApproved;
+    if (body.websiteStatus) update.websiteStatus = body.websiteStatus;
     if (body.visibility === "public" || body.visibility === "private") update.visibility = body.visibility;
     if (body.verificationStatus) {
       update.verificationStatus = body.verificationStatus;

@@ -89,11 +89,11 @@ export default function AdminDomainsPage() {
     fetchDomains();
   };
 
-  const handleApproveWebsite = async (id, isApproved) => {
+  const handleApproveWebsite = async (id, status) => {
     await fetch("/api/admin/domains", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, isWebsiteApproved: isApproved }),
+      body: JSON.stringify({ id, websiteStatus: status, isWebsiteApproved: status === "approved" }),
     });
     fetchDomains();
   };
@@ -273,8 +273,16 @@ export default function AdminDomainsPage() {
                   })()}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={d.isWebsiteApproved ? "badge-success" : "badge-warning"}>
-                    {d.isWebsiteApproved ? "Approved" : "Pending"}
+                  <span className={
+                    d.websiteStatus === "approved" || d.isWebsiteApproved ? "badge-success" 
+                    : d.websiteStatus === "pending" ? "badge-warning" 
+                    : d.websiteStatus === "rejected" ? "badge-danger" 
+                    : "badge-purple"
+                  }>
+                    {d.websiteStatus === "approved" || d.isWebsiteApproved ? "Approved" 
+                     : d.websiteStatus === "pending" ? "Pending" 
+                     : d.websiteStatus === "rejected" ? "Rejected" 
+                     : "Not Requested"}
                   </span>
                 </td>
                 <td className="px-6 py-4">
@@ -300,16 +308,16 @@ export default function AdminDomainsPage() {
                       )}
                       {verifyingId === d._id ? "Checking…" : "Verify DNS"}
                     </button>
-                    {!d.isWebsiteApproved ? (
+                    {d.websiteStatus === "pending" || (!d.isWebsiteApproved && d.websiteStatus !== "approved") ? (
                       <button
-                        onClick={() => handleApproveWebsite(d._id, true)}
+                        onClick={() => handleApproveWebsite(d._id, "approved")}
                         className="btn-primary !text-xs !py-1.5 !px-3 !rounded-lg !bg-green-600 hover:!bg-green-700"
                       >
                         Approve Website
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleApproveWebsite(d._id, false)}
+                        onClick={() => handleApproveWebsite(d._id, "none")}
                         className="btn-primary !text-xs !py-1.5 !px-3 !rounded-lg !bg-amber-600 hover:!bg-amber-700"
                       >
                         Revoke Website
