@@ -80,12 +80,15 @@ export async function GET() {
       tagsMap[item._id.toString()] = item.tags;
     }
 
-    // Attach to mailboxes
+    // Attach to mailboxes.
+    // - `tags` (from schema) = owner-set mailbox tags
+    // - `emailTags` (computed) = aggregated unique tags across the mailbox's emails
     const enriched = mailboxes.map((mb) => ({
       ...mb,
+      tags: mb.tags || [],
+      emailTags: tagsMap[mb._id.toString()] || [],
       lastEmail: lastEmailMap[mb._id.toString()] || null,
       unreadCount: unreadMap[mb._id.toString()] || 0,
-      tags: tagsMap[mb._id.toString()] || [],
     }));
 
     return NextResponse.json(enriched);

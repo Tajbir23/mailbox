@@ -91,8 +91,11 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: "Ownership transferred", mailbox: populated });
     }
 
-    // Set expiry date
+    // Set expiry date (owner only)
     if (body.action === "setExpiry") {
+      if (mailbox.ownerId.toString() !== userId) {
+        return NextResponse.json({ error: "Only the owner can set the auto-delete timer" }, { status: 403 });
+      }
       const { expiresAt } = body;
 
       if (expiresAt === null) {
@@ -113,8 +116,11 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: "Expiry set", expiresAt: mailbox.expiresAt });
     }
 
-    // Toggle public access
+    // Toggle public access (owner only — making a shared mailbox public exposes everyone's emails)
     if (body.action === "setPublic") {
+      if (mailbox.ownerId.toString() !== userId) {
+        return NextResponse.json({ error: "Only the owner can change visibility" }, { status: 403 });
+      }
       mailbox.isPublic = Boolean(body.isPublic);
       await mailbox.save();
       return NextResponse.json({
@@ -122,6 +128,23 @@ export async function PATCH(request, { params }) {
         message: mailbox.isPublic ? "Mailbox is now public" : "Mailbox is now private",
         isPublic: mailbox.isPublic,
       });
+    }
+
+    // Owner-set mailbox tags (owner only — shared users see read-only)
+    if (body.action === "setTags") {
+      if (mailbox.ownerId.toString() !== userId) {
+        return NextResponse.json({ error: "Only the owner can set tags" }, { status: 403 });
+      }
+      if (!Array.isArray(body.tags)) {
+        return NextResponse.json({ error: "tags must be an array" }, { status: 400 });
+      }
+      const cleaned = body.tags
+        .map((t) => (typeof t === "string" ? t.trim() : ""))
+        .filter(Boolean)
+        .map((t) => t.slice(0, 40));
+      mailbox.tags = Array.from(new Set(cleaned)).slice(0, 30);
+      await mailbox.save();
+      return NextResponse.json({ success: true, tags: mailbox.tags });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

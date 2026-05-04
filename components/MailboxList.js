@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import io from "socket.io-client";
 import ShareModal from "./ShareModal";
 import Modal from "@/components/Modal";
+import MailboxTagModal from "@/components/MailboxTagModal";
 import { useToast } from "@/components/Toast";
 import { makeMatcher } from "@/lib/search";
 
@@ -38,7 +39,7 @@ function timeUntil(dateStr) {
 }
 
 // ── MailboxActions dropdown ──
-function MailboxActions({ mb, onUpdate, onDelete }) {
+function MailboxActions({ mb, onUpdate, onDelete, onManageTags }) {
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState(null); // null | "transfer" | "expiry"
   const [transferEmail, setTransferEmail] = useState("");
@@ -214,6 +215,23 @@ function MailboxActions({ mb, onUpdate, onDelete }) {
         <div className="absolute right-0 top-10 z-50 w-72 card shadow-soft-lg overflow-hidden animate-scale-in">
           <div className="p-1.5">
               <button
+                onClick={() => { setOpen(false); onManageTags?.(mb); }}
+                className="w-full px-3 py-2.5 text-left text-sm text-surface-700 hover:bg-surface-50 rounded-xl flex items-center gap-3 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="font-medium">Manage Tags</p>
+                  <p className="text-xs text-surface-400">Owner-set mailbox tags</p>
+                </div>
+                {mb.tags && mb.tags.length > 0 && (
+                  <span className="ml-auto text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">{mb.tags.length}</span>
+                )}
+              </button>
+              <button
                 onClick={openTransfer}
                 className="w-full px-3 py-2.5 text-left text-sm text-surface-700 hover:bg-surface-50 rounded-xl flex items-center gap-3 transition-colors"
               >
@@ -383,6 +401,7 @@ function MailboxActions({ mb, onUpdate, onDelete }) {
 
 export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpdate, expandHref = null }) {
   const [shareTarget, setShareTarget] = useState(null);
+  const [tagManageMailbox, setTagManageMailbox] = useState(null);
   const [mailboxes, setMailboxes] = useState(initialMailboxes);
   const [copiedId, setCopiedId] = useState(null);
   const [search, setSearch] = useState("");
@@ -395,6 +414,16 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
     setCurrentPage(1);
   }, [search]);
 
+  const updateMailboxLocally = (mailboxId, patch) => {
+    setMailboxes((prev) =>
+      prev.map((mb) => (mb._id === mailboxId ? { ...mb, ...patch } : mb))
+    );
+    // Keep modal target in sync so re-opens see fresh data
+    setTagManageMailbox((cur) =>
+      cur && cur._id === mailboxId ? { ...cur, ...patch } : cur
+    );
+  };
+
   const filteredMailboxes = useMemo(() => {
     const match = makeMatcher(search);
     if (!search.trim()) return mailboxes;
@@ -405,7 +434,8 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
         mb.lastEmail?.from,
         mb.ownerId?.name,
         mb.ownerId?.email,
-        mb.tags
+        mb.tags,        // owner-set mailbox tags
+        mb.emailTags    // aggregated email tags
       )
     );
   }, [mailboxes, search]);
@@ -428,6 +458,10 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
 
   useEffect(() => {
     setMailboxes(initialMailboxes);
+    // If the modal target was removed during a re-fetch, close it
+    setTagManageMailbox((cur) =>
+      cur && initialMailboxes.some((mb) => mb._id === cur._id) ? cur : null
+    );
   }, [initialMailboxes]);
 
   useEffect(() => {
@@ -616,6 +650,32 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
                           </p>
                         </Link>
                       )}
+
+                      {/* Tag pills: owner-set (filled red) + email-aggregated (outlined red) */}
+                      {((mb.tags && mb.tags.length > 0) || (mb.emailTags && mb.emailTags.length > 0)) && (
+                        <div className="flex flex-wrap gap-1 mt-2 ml-[46px]">
+                          {(mb.tags || []).map((tag) => (
+                            <span
+                              key={`o-${tag}`}
+                              title="Mailbox tag"
+                              className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold text-red-700 bg-red-100 border border-red-200 rounded"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {(mb.emailTags || [])
+                            .filter((t) => !(mb.tags || []).some((o) => o.toLowerCase() === t.toLowerCase()))
+                            .map((tag) => (
+                              <span
+                                key={`e-${tag}`}
+                                title="From this mailbox's emails"
+                                className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium text-red-600 bg-white border border-red-200 rounded"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Right: actions */}
@@ -631,7 +691,12 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
                             </svg>
                             Share
                           </button>
-                          <MailboxActions mb={mb} onUpdate={onUpdate} onDelete={handleDeleteMailbox} />
+                          <MailboxActions
+                            mb={mb}
+                            onUpdate={onUpdate}
+                            onDelete={handleDeleteMailbox}
+                            onManageTags={(target) => setTagManageMailbox(target)}
+                          />
                         </>
                       )}
                       <Link
@@ -691,6 +756,12 @@ export default function MailboxList({ mailboxes: initialMailboxes, userId, onUpd
           onShared={onUpdate}
         />
       )}
+
+      <MailboxTagModal
+        mailbox={tagManageMailbox}
+        onClose={() => setTagManageMailbox(null)}
+        onUpdated={updateMailboxLocally}
+      />
     </>
   );
 }
