@@ -72,33 +72,20 @@ export default function ChatGPTCheckoutPage() {
         throw new Error("Access token not found in the JSON.");
       }
 
-      const response = await fetch("https://chatgpt.com/backend-api/payments/checkout", {
+      const response = await fetch("/api/chatgpt-checkout/generate", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
-          "Accept": "application/json"
         },
-        body: JSON.stringify({
-          entry_point: "all_plans_pricing_modal",
-          plan_name: "chatgptplusplan",
-          billing_details: {
-            country: "ID",
-            currency: "IDR"
-          },
-          promo_campaign: {
-            promo_campaign_id: "plus-1-month-free",
-            is_coupon_from_query_param: false
-          },
-          checkout_ui_mode: "custom"
-        })
+        body: JSON.stringify({ accessToken })
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(`Failed to generate checkout session. Status: ${response.status}`);
+        throw new Error(data.error || `Failed to generate checkout session. Status: ${response.status}`);
       }
 
-      const data = await response.json();
       if (!data.checkout_session_id) {
         throw new Error("No checkout_session_id found in the response.");
       }
