@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { useState } from "react";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -67,6 +68,7 @@ export default function Navbar() {
           <div className="flex items-center gap-3 shrink-0">
             {session ? (
               <>
+                <NotificationBell />
                 <Link
                   href="/dashboard/settings"
                   className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-50 hover:bg-brand-50 rounded-lg border border-surface-100 hover:border-brand-100 transition group"

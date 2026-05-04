@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import Domain from "@/lib/models/Domain";
+import Notification from "@/lib/models/Notification";
 
 // GET /api/admin/domains – list all domains (admin only)
 export async function GET() {
@@ -114,7 +115,33 @@ export async function PATCH(request) {
 
     const update = {};
     if (typeof body.isActive === "boolean") update.isActive = body.isActive;
-    if (body.websiteStatus) update.websiteStatus = body.websiteStatus;
+    
+    if (body.websiteStatus) {
+      update.websiteStatus = body.websiteStatus;
+      
+      // We need to fetch the domain first to check if status actually changed
+      const currentDomain = await Domain.findById(id);
+      if (currentDomain && currentDomain.websiteStatus !== body.websiteStatus) {
+        if (body.websiteStatus === "approved") {
+          await Notification.create({
+            userId: currentDomain.ownerId,
+            title: "Website Hosting Approved! 🎉",
+            message: `Your request to host your website on ${currentDomain.name} has been approved! Go to "My Domains" to view the DNS configuration details.`,
+            type: "success",
+            link: "/dashboard/settings"
+          });
+        } else if (body.websiteStatus === "rejected") {
+          await Notification.create({
+            userId: currentDomain.ownerId,
+            title: "Website Hosting Rejected",
+            message: `Your request to host your website on ${currentDomain.name} was not approved by the admin.`,
+            type: "error",
+            link: "/dashboard/settings"
+          });
+        }
+      }
+    }
+
     if (body.visibility === "public" || body.visibility === "private") update.visibility = body.visibility;
     if (body.verificationStatus) {
       update.verificationStatus = body.verificationStatus;
