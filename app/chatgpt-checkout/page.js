@@ -13,6 +13,8 @@ export default function ChatGPTCheckoutPage() {
   const [error, setError] = useState(null);
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [stats, setStats] = useState({ total: 0, today: 0, uniqueUsers: 0 });
+  const [copied, setCopied] = useState(false);
+  const [sessionUrlCopied, setSessionUrlCopied] = useState(false);
 
   const fetchStats = async () => {
     try {
@@ -104,7 +106,14 @@ export default function ChatGPTCheckoutPage() {
 
   const handleCopy = () => {
     navigator.clipboard.writeText(checkoutUrl);
-    alert("URL copied to clipboard!");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopySessionUrl = () => {
+    navigator.clipboard.writeText("https://chatgpt.com/api/auth/session");
+    setSessionUrlCopied(true);
+    setTimeout(() => setSessionUrlCopied(false), 2000);
   };
 
   const handleRegenerate = () => {
@@ -147,9 +156,28 @@ export default function ChatGPTCheckoutPage() {
           {!checkoutUrl ? (
             <>
               <h2 className="text-xl font-semibold text-surface-800 mb-4">Session Info</h2>
-              <p className="text-surface-500 mb-4">
-                Paste your session JSON block here. The system will extract the access token automatically.
-              </p>
+              
+              <div className="mb-6">
+                <div className="flex items-center justify-between bg-surface-100 p-2 sm:p-3 rounded-xl border border-surface-200 mb-4 overflow-hidden gap-2">
+                  <code className="text-sm font-mono text-surface-800 truncate px-2">
+                    https://chatgpt.com/api/auth/session
+                  </code>
+                  <button
+                    onClick={handleCopySessionUrl}
+                    className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+                      sessionUrlCopied
+                        ? "bg-emerald-500 text-white shadow-sm"
+                        : "bg-white text-surface-700 border border-surface-200 hover:bg-surface-50 shadow-sm"
+                    }`}
+                  >
+                    {sessionUrlCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+                <p className="text-surface-500 text-sm">
+                  <span className="font-medium text-surface-700">Step 1:</span> Copy the URL above and open it in a new tab where you are logged into ChatGPT.<br/>
+                  <span className="font-medium text-surface-700">Step 2:</span> Copy the entire JSON response from that tab and paste it below. The system will extract the access token automatically.
+                </p>
+              </div>
               
               <textarea 
                 className="input-field w-full h-64 font-mono text-sm mb-4" 
@@ -188,9 +216,9 @@ export default function ChatGPTCheckoutPage() {
               <div className="flex gap-4">
                 <button 
                   onClick={handleCopy} 
-                  className="btn-primary flex-1 py-3 text-base"
+                  className={`flex-1 py-3 text-base transition-colors ${copied ? 'bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-brand-md' : 'btn-primary'}`}
                 >
-                  Copy URL
+                  {copied ? "Copied!" : "Copy URL"}
                 </button>
                 <button 
                   onClick={handleRegenerate} 

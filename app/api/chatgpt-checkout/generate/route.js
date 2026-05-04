@@ -42,8 +42,21 @@ export async function POST(request) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("ChatGPT API Error:", errorText);
+      
+      let errorMessage = `Failed to generate checkout session. Status: ${response.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson?.detail === "User is already paid") {
+          errorMessage = "User is already paid";
+        } else if (errorJson?.detail) {
+          errorMessage = errorJson.detail;
+        }
+      } catch (e) {
+        // Not a JSON response
+      }
+
       return NextResponse.json({ 
-        error: `Failed to generate checkout session. Status: ${response.status}`,
+        error: errorMessage,
         details: errorText
       }, { status: response.status });
     }
