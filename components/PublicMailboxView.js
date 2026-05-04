@@ -463,15 +463,15 @@ export default function PublicMailboxView() {
               <div className={`overflow-y-auto max-h-[480px] md:max-h-none ${!selected ? 'hidden md:block' : 'block'}`}>
                 {selected ? (
                   <div className="animate-fade-in">
+                    <div className="sticky top-0 z-10 bg-white flex items-center gap-3 px-5 py-3 border-b border-surface-100 md:hidden">
+                      <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg bg-surface-100 text-surface-600 hover:bg-surface-200">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <span className="text-sm font-semibold text-surface-600">Back to Inbox</span>
+                    </div>
                     <div className="px-5 py-4 border-b border-surface-100">
-                      <div className="flex items-center gap-3 mb-3 md:hidden">
-                        <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg bg-surface-100 text-surface-600 hover:bg-surface-200">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                          </svg>
-                        </button>
-                        <span className="text-sm font-semibold text-surface-600">Back to Inbox</span>
-                      </div>
                       <h2 className="text-base font-bold text-surface-900 mb-2 leading-tight">
                         {selected.subject || "(No Subject)"}
                       </h2>
