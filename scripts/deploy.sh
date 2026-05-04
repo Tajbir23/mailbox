@@ -27,7 +27,7 @@ git pull origin main
 log "Code updated"
 
 info "Installing dependencies..."
-npm ci --omit=dev --silent 2>/dev/null || npm install --omit=dev --silent
+npm install
 log "Dependencies installed"
 
 info "Building Next.js..."
