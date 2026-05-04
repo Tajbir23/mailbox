@@ -43,7 +43,8 @@ Self-hosted, receive-only email SaaS platform built with **Next.js 14**, a custo
 - **Real-Time Inbox** — Emails arrive instantly via WebSocket (Socket.io)
 - **Team Sharing** — Share mailboxes with team members
 - **Mailbox Management** — Create, transfer ownership, set auto-expiry, delete
-- **Admin Panel** — Dashboard overview, user management (promote/demote/reset password/delete), domain management, server monitoring (CPU, RAM, storage, email volume charts)
+- **Admin Panel** — Dashboard overview, user management (promote/demote/reset password/delete), domain management, server monitoring (CPU, RAM, storage, email volume charts), domain hosting approvals.
+- **In-App Notifications** — Real-time notification bell and persistent popups for important updates (like domain approvals).
 - **Copy Email Address** — One-click copy for created mailboxes
 - **Read/Unread Tracking** — Visual indicators for email read status
 - **Auto-Expiry Cleanup** — Expired mailboxes are automatically deleted every 60 seconds
@@ -101,7 +102,8 @@ mailbox-saas/
 │       ├── User.js           # User schema (name, email, password, role)
 │       ├── Mailbox.js        # Mailbox schema (owner, shared, expiry)
 │       ├── IncomingEmail.js  # Email schema (from, to, subject, body, attachments)
-│       └── Domain.js         # Domain schema (DNS verification, isSystemDomain)
+│       ├── Domain.js         # Domain schema (DNS verification, websiteStatus, isSystemDomain)
+│       └── Notification.js   # In-app notifications schema
 ├── smtp-server/
 │   └── smtp.js              # Standalone SMTP + Socket.io server
 ├── scripts/
