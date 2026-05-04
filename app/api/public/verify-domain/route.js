@@ -21,10 +21,10 @@ export async function GET(req) {
   try {
     await dbConnect();
     // Check if the domain is registered, active, and approved for website hosting by admin
-    const existingDomain = await Domain.findOne({ 
-      name: domain.toLowerCase(), 
+    const existingDomain = await Domain.findOne({
+      name: domain.toLowerCase(),
       isActive: true,
-      isWebsiteApproved: true 
+      websiteStatus: "approved"
     });
     
     if (existingDomain) {

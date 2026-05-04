@@ -392,7 +392,7 @@ export default function UserDomains() {
                   {/* Website Hosting Request Section */}
                   {d.verificationStatus === "verified" && (
                     <div className="border-t border-surface-200 mt-4 pt-4">
-                      {d.websiteStatus === "approved" || d.isWebsiteApproved ? (
+                      {d.websiteStatus === "approved" ? (
                         <div className="bg-green-50 rounded-xl p-4 border border-green-200">
                           <h4 className="text-sm font-bold text-green-700 mb-2">🎉 Website Hosting Approved</h4>
                           <p className="text-xs text-green-600 mb-3">Your domain is ready to point to our servers!</p>

@@ -59,7 +59,7 @@ export async function POST(request) {
         ownerId: session.user.id,
         isSystemDomain: true,
         verificationStatus: "verified",
-        isWebsiteApproved: true,
+        websiteStatus: "approved",
         verifiedAt: new Date(),
         dnsRecords: { mxVerified: true, txtVerified: true },
       });
@@ -114,7 +114,6 @@ export async function PATCH(request) {
 
     const update = {};
     if (typeof body.isActive === "boolean") update.isActive = body.isActive;
-    if (typeof body.isWebsiteApproved === "boolean") update.isWebsiteApproved = body.isWebsiteApproved;
     if (body.websiteStatus) update.websiteStatus = body.websiteStatus;
     if (body.visibility === "public" || body.visibility === "private") update.visibility = body.visibility;
     if (body.verificationStatus) {

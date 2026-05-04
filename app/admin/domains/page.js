@@ -93,7 +93,7 @@ export default function AdminDomainsPage() {
     await fetch("/api/admin/domains", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, websiteStatus: status, isWebsiteApproved: status === "approved" }),
+      body: JSON.stringify({ id, websiteStatus: status }),
     });
     fetchDomains();
   };
@@ -274,14 +274,14 @@ export default function AdminDomainsPage() {
                 </td>
                 <td className="px-6 py-4">
                   <span className={
-                    d.websiteStatus === "approved" || d.isWebsiteApproved ? "badge-success" 
-                    : d.websiteStatus === "pending" ? "badge-warning" 
-                    : d.websiteStatus === "rejected" ? "badge-danger" 
+                    d.websiteStatus === "approved" ? "badge-success"
+                    : d.websiteStatus === "pending" ? "badge-warning"
+                    : d.websiteStatus === "rejected" ? "badge-danger"
                     : "badge-purple"
                   }>
-                    {d.websiteStatus === "approved" || d.isWebsiteApproved ? "Approved" 
-                     : d.websiteStatus === "pending" ? "Pending" 
-                     : d.websiteStatus === "rejected" ? "Rejected" 
+                    {d.websiteStatus === "approved" ? "Approved"
+                     : d.websiteStatus === "pending" ? "Pending"
+                     : d.websiteStatus === "rejected" ? "Rejected"
                      : "Not Requested"}
                   </span>
                 </td>
@@ -308,7 +308,7 @@ export default function AdminDomainsPage() {
                       )}
                       {verifyingId === d._id ? "Checking…" : "Verify DNS"}
                     </button>
-                    {d.websiteStatus === "pending" || (!d.isWebsiteApproved && d.websiteStatus !== "approved") ? (
+                    {d.websiteStatus !== "approved" ? (
                       <button
                         onClick={() => handleApproveWebsite(d._id, "approved")}
                         className="btn-primary !text-xs !py-1.5 !px-3 !rounded-lg !bg-green-600 hover:!bg-green-700"

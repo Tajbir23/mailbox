@@ -61,7 +61,7 @@ const DomainSchema = new mongoose.Schema(
       txtVerified: Boolean,
     },
     verifiedAt: Date,
-    isWebsiteApproved: Boolean,
+    websiteStatus: String,
   },
   { timestamps: true }
 );
