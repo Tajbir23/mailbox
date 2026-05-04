@@ -102,6 +102,28 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleToggleCheckoutAccess = async (userId, currentAccess) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: userId, action: "toggleCheckoutAccess" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showMessage(`Checkout access ${currentAccess ? "revoked" : "granted"}`);
+        fetchUsers();
+      } else {
+        showMessage(data.error || "Failed", "error");
+      }
+    } catch {
+      showMessage("Error toggling checkout access", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleResetPassword = async () => {
     if (!newPassword || newPassword.length < 6) {
       showMessage("Password must be at least 6 characters", "error");
@@ -254,16 +276,23 @@ export default function AdminUsersPage() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold ${
-                            u.role === "admin"
-                              ? "bg-brand-50 text-brand-700 ring-1 ring-brand-100"
-                              : "bg-surface-100 text-surface-600"
-                          }`}>
-                            {u.role === "admin" && (
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold ${
+                              u.role === "admin"
+                                ? "bg-brand-50 text-brand-700 ring-1 ring-brand-100"
+                                : "bg-surface-100 text-surface-600"
+                            }`}>
+                              {u.role === "admin" && (
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                              )}
+                              {u.role}
+                            </span>
+                            {u.canAccessCheckout && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                                Checkout Access
+                              </span>
                             )}
-                            {u.role}
-                          </span>
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className="text-sm font-bold text-surface-700">{u.mailboxCount || 0}</span>
@@ -272,7 +301,7 @@ export default function AdminUsersPage() {
                           <span className="text-xs text-surface-500">{timeAgo(u.createdAt)}</span>
                         </td>
                         <td className="py-3 px-4">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
                             {!isSelf && (
                               <>
                                 <button
@@ -282,6 +311,18 @@ export default function AdminUsersPage() {
                                   title={`Make ${u.role === "admin" ? "user" : "admin"}`}
                                 >
                                   {u.role === "admin" ? "Demote" : "Promote"}
+                                </button>
+                                <button
+                                  onClick={() => handleToggleCheckoutAccess(u._id, u.canAccessCheckout)}
+                                  disabled={actionLoading}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
+                                    u.canAccessCheckout 
+                                      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" 
+                                      : "bg-surface-100 text-surface-700 hover:bg-surface-200"
+                                  }`}
+                                  title={u.canAccessCheckout ? "Revoke Checkout Access" : "Grant Checkout Access"}
+                                >
+                                  {u.canAccessCheckout ? "Revoke Checkout" : "Grant Checkout"}
                                 </button>
                                 <button
                                   onClick={() => setShowResetModal(u)}

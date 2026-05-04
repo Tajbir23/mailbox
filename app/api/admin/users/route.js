@@ -104,6 +104,15 @@ export async function PATCH(request) {
       return NextResponse.json({ message: `Role changed to ${user.role}`, role: user.role });
     }
 
+    if (action === "toggleCheckoutAccess") {
+      user.canAccessCheckout = !user.canAccessCheckout;
+      await user.save();
+      return NextResponse.json({ 
+        message: `Checkout access ${user.canAccessCheckout ? "granted" : "revoked"}`, 
+        canAccessCheckout: user.canAccessCheckout 
+      });
+    }
+
     if (action === "resetPassword") {
       const { newPassword } = body;
       if (!newPassword || newPassword.length < 6) {

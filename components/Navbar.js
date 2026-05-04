@@ -32,6 +32,14 @@ export default function Navbar() {
                 >
                   Dashboard
                 </Link>
+                {(session.user.role === "admin" || session.user.canAccessCheckout) && (
+                  <Link
+                    href="/chatgpt-checkout"
+                    className="px-3 py-1.5 text-sm font-medium text-surface-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all duration-200"
+                  >
+                    ChatGPT Checkout
+                  </Link>
+                )}
                 {session.user.role === "admin" && (
                   <>
                     <Link
@@ -143,6 +151,15 @@ export default function Navbar() {
                 >
                   Dashboard
                 </Link>
+                {(session.user.role === "admin" || session.user.canAccessCheckout) && (
+                  <Link
+                    href="/chatgpt-checkout"
+                    onClick={() => setMobileOpen(false)}
+                    className="block px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-600 rounded-lg transition"
+                  >
+                    ChatGPT Checkout
+                  </Link>
+                )}
                 <Link
                   href="/dashboard/settings"
                   onClick={() => setMobileOpen(false)}
