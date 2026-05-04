@@ -99,7 +99,7 @@ export default function NotificationBell() {
       {showPopup && (
         <div 
           onClick={() => markAsRead(latestUnread._id, latestUnread.link)}
-          className="absolute top-12 right-0 w-72 bg-white rounded-2xl shadow-brand-xl border border-surface-200 z-40 p-3 cursor-pointer hover:bg-surface-50 transition-all animate-fade-in group"
+          className="absolute top-12 -right-2 sm:right-0 w-[calc(100vw-2rem)] max-w-[320px] sm:w-72 sm:max-w-none bg-white rounded-2xl shadow-brand-xl border border-surface-200 z-40 p-3 cursor-pointer hover:bg-surface-50 transition-all animate-fade-in group"
         >
           <div className="flex justify-between items-start gap-2">
             <div className="flex items-start gap-2.5">
@@ -128,7 +128,7 @@ export default function NotificationBell() {
       )}
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-brand-xl border border-surface-100 overflow-hidden z-50 animate-slide-down">
+        <div className="absolute -right-2 sm:right-0 mt-2 w-[calc(100vw-2rem)] max-w-[340px] sm:w-80 sm:max-w-none bg-white rounded-2xl shadow-brand-xl border border-surface-100 overflow-hidden z-50 animate-slide-down origin-top-right">
           <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100 bg-surface-50/50">
             <h3 className="text-sm font-bold text-surface-800">Notifications</h3>
             {unreadCount > 0 && (
