@@ -355,7 +355,7 @@ export default function PublicMailboxView() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm sm:text-base font-mono font-semibold text-surface-900 truncate">
+                    <p className="text-sm sm:text-base font-mono font-semibold text-surface-900 break-all leading-tight">
                       {mailbox.emailAddress}
                     </p>
                     <button
@@ -407,7 +407,7 @@ export default function PublicMailboxView() {
             {/* Inbox split */}
             <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] min-h-[480px]">
               {/* Email list */}
-              <div className="border-b md:border-b-0 md:border-r border-surface-100 overflow-y-auto max-h-[480px]">
+              <div className={`border-b md:border-b-0 md:border-r border-surface-100 overflow-y-auto max-h-[480px] md:max-h-none ${selected ? 'hidden md:block' : 'block'}`}>
                 {emails.length === 0 ? (
                   <div className="p-8 text-center">
                     <div className="w-14 h-14 rounded-2xl bg-surface-50 flex items-center justify-center mx-auto mb-3">
@@ -460,10 +460,18 @@ export default function PublicMailboxView() {
               </div>
 
               {/* Email detail */}
-              <div className="overflow-y-auto max-h-[480px]">
+              <div className={`overflow-y-auto max-h-[480px] md:max-h-none ${!selected ? 'hidden md:block' : 'block'}`}>
                 {selected ? (
                   <div className="animate-fade-in">
                     <div className="px-5 py-4 border-b border-surface-100">
+                      <div className="flex items-center gap-3 mb-3 md:hidden">
+                        <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg bg-surface-100 text-surface-600 hover:bg-surface-200">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <span className="text-sm font-semibold text-surface-600">Back to Inbox</span>
+                      </div>
                       <h2 className="text-base font-bold text-surface-900 mb-2 leading-tight">
                         {selected.subject || "(No Subject)"}
                       </h2>
