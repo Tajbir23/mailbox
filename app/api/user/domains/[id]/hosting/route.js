@@ -30,13 +30,15 @@ export async function POST(request, { params }) {
       );
     }
 
-    // Set to pending
+    // Set to pending and make the domain public for mail creation
     domain.websiteStatus = "pending";
+    domain.visibility = "public";
     await domain.save();
 
     return NextResponse.json({ 
-      message: "Hosting requested",
-      websiteStatus: domain.websiteStatus 
+      message: "Hosting requested and domain is now public",
+      websiteStatus: domain.websiteStatus,
+      visibility: domain.visibility
     });
   } catch (err) {
     console.error(err);
