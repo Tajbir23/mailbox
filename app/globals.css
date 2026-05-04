@@ -198,3 +198,6 @@ img, video, svg {
   overflow-x: auto;
   display: block;
 }
+
+:root { color-scheme: light; }
+
