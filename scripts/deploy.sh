@@ -39,9 +39,9 @@ pm2 restart ecosystem.config.js
 pm2 save
 log "All processes restarted"
 
-# Reload nginx (in case nginx-mailbox.conf changed)
-nginx -t 2>/dev/null && systemctl reload nginx
-log "Nginx reloaded"
+# Reload caddy (in case Caddyfile changed)
+systemctl reload caddy
+log "Caddy reloaded"
 
 echo ""
 echo -e "${GREEN}Redeploy complete!${NC} Run ${CYAN}pm2 logs${NC} to check."
