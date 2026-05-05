@@ -67,6 +67,9 @@ const IncomingEmailSchema = new mongoose.Schema({
   receivedAt: { type: Date, default: Date.now },
 });
 
+// Auto-delete emails older than 3 days (must match lib/models/IncomingEmail.js)
+IncomingEmailSchema.index({ receivedAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 3 });
+
 let Mailbox;
 let IncomingEmail;
 
