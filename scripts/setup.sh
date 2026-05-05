@@ -7,19 +7,22 @@
 #   sudo bash scripts/setup.sh
 #
 # What it does:
-#   1. Installs Node.js 20, npm, nginx, certbot, pm2
+#   1. Installs Node.js 20, npm, Caddy, pm2
 #   2. Clones/pulls the repo to /var/www/mailbox-saas
 #   3. Installs npm dependencies & builds the Next.js app
-#   4. Generates nginx config from .env.local (domain name)
-#   5. Enables & reloads nginx
-#   6. Obtains SSL certificate via certbot (if domain resolves)
-#   7. Starts/restarts PM2 processes (next + smtp)
-#   8. Saves PM2 startup so it survives reboots
+#   4. Generates Caddyfile from .env.local (domain name)
+#      (Caddy auto-issues Let's Encrypt certs — no Certbot needed)
+#   5. Reloads Caddy
+#   6. Starts/restarts PM2 processes (next + smtp)
+#   7. Saves PM2 startup so it survives reboots
 #
 # Re-run safe: can be run multiple times without breaking anything.
 #
 
 set -euo pipefail
+
+# Ensure PATH is exported so npm scripts (next, etc.) are found
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # ───────── Colors ─────────
 RED='\033[0;31m'
@@ -43,8 +46,8 @@ fi
 APP_DIR="/var/www/mailbox-saas"
 REPO_URL="${REPO_URL:-}"          # set via env or auto-detect from git
 BRANCH="${BRANCH:-main}"
-NGINX_SITE="mailbox"
 ENV_FILE="$APP_DIR/.env.local"
+CADDYFILE="/etc/caddy/Caddyfile"
 
 # ───────── Helper: read value from .env.local ─────────
 env_val() {
@@ -69,19 +72,30 @@ if ! command -v node &>/dev/null || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 
 fi
 log "Node $(node -v)  npm $(npm -v)"
 
-# ── nginx ──
-if ! command -v nginx &>/dev/null; then
-  info "Installing nginx..."
-  apt-get install -y -qq nginx
-fi
-log "nginx installed"
+# ── git, curl, ufw prereqs ──
+apt-get install -y -qq git curl debian-keyring debian-archive-keyring apt-transport-https
 
-# ── certbot ──
-if ! command -v certbot &>/dev/null; then
-  info "Installing certbot..."
-  apt-get install -y -qq certbot python3-certbot-nginx
+# ── Caddy ──
+if ! command -v caddy &>/dev/null; then
+  info "Installing Caddy..."
+  # Official Caddy stable apt repo (cloudsmith)
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+    | gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+    > /etc/apt/sources.list.d/caddy-stable.list
+  apt-get update -qq
+  apt-get install -y -qq caddy
 fi
-log "certbot installed"
+log "Caddy $(caddy version | head -1)"
+
+# ── If nginx is present from an old setup, stop & disable it (it conflicts on 80/443) ──
+if command -v nginx &>/dev/null; then
+  if systemctl is-active --quiet nginx; then
+    warn "nginx is running — stopping it (Caddy will handle ports 80/443)"
+    systemctl stop nginx || true
+  fi
+  systemctl disable nginx 2>/dev/null || true
+fi
 
 # ── PM2 ──
 if ! command -v pm2 &>/dev/null; then
@@ -89,9 +103,6 @@ if ! command -v pm2 &>/dev/null; then
   npm install -g pm2 --silent
 fi
 log "PM2 $(pm2 -v)"
-
-# ── git ──
-apt-get install -y -qq git
 
 # ══════════════════════════════════════════════
 #  STEP 2 – Application code
@@ -145,7 +156,7 @@ MAIL_SERVER_HOSTNAME=mail.yourdomain.com
 SOCKET_PORT=4000
 NEXT_PUBLIC_SOCKET_URL=https://yourdomain.com
 
-# Domain (used by setup script for nginx)
+# Domain (used by setup script for the Caddyfile)
 DOMAIN=yourdomain.com
 ENVEOF
   err "Please edit $ENV_FILE with your actual values, then re-run this script."
@@ -176,101 +187,95 @@ log "Domain: $DOMAIN | Socket port: $SOCKET_PORT"
 #  STEP 4 – Install deps & build
 # ══════════════════════════════════════════════
 info "Installing npm dependencies..."
-npm ci --omit=dev --silent 2>/dev/null || npm install --omit=dev --silent
+# Install full deps (including devDeps that next build may need)
+npm ci --silent 2>/dev/null || npm install --silent
 
 info "Building Next.js production bundle..."
 npm run build
 log "Build complete"
 
 # ══════════════════════════════════════════════
-#  STEP 5 – Nginx configuration
+#  STEP 5 – Caddy configuration (auto-HTTPS + On-Demand TLS)
 # ══════════════════════════════════════════════
-info "Configuring nginx for $DOMAIN..."
+info "Configuring Caddy for $DOMAIN..."
 
-NGINX_CONF="/etc/nginx/sites-available/$NGINX_SITE"
+mkdir -p /etc/caddy
 
-cat > "$NGINX_CONF" <<NGINXEOF
-server {
-    listen 80;
-    server_name $DOMAIN www.$DOMAIN;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/html;
+cat > "$CADDYFILE" <<CADDYEOF
+{
+    # On-Demand TLS approval endpoint — Caddy asks the app whether to
+    # issue a cert for an arbitrary hostname (white-label custom domains).
+    on_demand_tls {
+        ask http://127.0.0.1:3000/api/public/verify-domain
     }
-
-    # Next.js app
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-    }
-
-    # Socket.io WebSocket
-    location /socket.io/ {
-        proxy_pass http://127.0.0.1:$SOCKET_PORT;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 86400;
-    }
-
-    # Security headers
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-
-    client_max_body_size 25M;
 }
-NGINXEOF
 
-# Enable site
-ln -sf "$NGINX_CONF" "/etc/nginx/sites-enabled/$NGINX_SITE"
+# 1) Main domain (always-on TLS, auto-issued by Let's Encrypt)
+$DOMAIN, www.$DOMAIN {
+    reverse_proxy 127.0.0.1:3000
 
-# Remove default site if it exists (optional, avoids conflict)
-rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
-
-# Test & reload
-nginx -t
-systemctl enable nginx
-systemctl reload nginx
-log "Nginx configured and reloaded"
-
-# ══════════════════════════════════════════════
-#  STEP 6 – SSL with Certbot
-# ══════════════════════════════════════════════
-info "Checking SSL certificate..."
-if certbot certificates 2>/dev/null | grep -q "$DOMAIN"; then
-  log "SSL certificate already exists for $DOMAIN"
-else
-  info "Requesting SSL certificate for $DOMAIN..."
-  # Test if domain resolves to this server before requesting
-  SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || echo "")
-  DOMAIN_IP=$(dig +short "$DOMAIN" 2>/dev/null | tail -1 || echo "")
-
-  if [[ -n "$SERVER_IP" && "$DOMAIN_IP" == "$SERVER_IP" ]]; then
-    certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email --redirect || {
-      warn "Certbot failed. You can run it manually later:"
-      warn "  certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+    # Socket.io routing
+    handle /socket.io/* {
+        reverse_proxy 127.0.0.1:$SOCKET_PORT
     }
-    log "SSL certificate obtained"
-  else
-    warn "Domain $DOMAIN does not point to this server ($SERVER_IP vs $DOMAIN_IP)."
-    warn "Skipping SSL. After DNS propagation, run:"
-    warn "  certbot --nginx -d $DOMAIN -d www.$DOMAIN"
-  fi
+
+    # Security headers (mirrored from former nginx config)
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-XSS-Protection "1; mode=block"
+        # Strict-Transport-Security is also added by the Next.js middleware
+    }
+
+    request_body {
+        max_size 25MB
+    }
+}
+
+# 2) Catch-all for On-Demand TLS custom domains
+#    Any other hostname pointed at this server gets a cert auto-issued
+#    after /api/public/verify-domain returns 2xx.
+https:// {
+    tls {
+        on_demand
+    }
+
+    reverse_proxy 127.0.0.1:3000
+
+    # Socket.io routing for custom domains
+    handle /socket.io/* {
+        reverse_proxy 127.0.0.1:$SOCKET_PORT
+    }
+
+    request_body {
+        max_size 25MB
+    }
+}
+CADDYEOF
+
+# Fix ownership so Caddy can read its own config / cache certs
+chown -R caddy:caddy /var/lib/caddy 2>/dev/null || true
+
+# Validate config
+if ! caddy validate --config "$CADDYFILE" --adapter caddyfile 2>/dev/null; then
+  err "Caddyfile validation failed. Check $CADDYFILE"
+  caddy validate --config "$CADDYFILE" --adapter caddyfile || true
+  exit 1
 fi
 
+systemctl enable caddy >/dev/null 2>&1 || true
+
+# Reload if already running, otherwise start
+if systemctl is-active --quiet caddy; then
+  systemctl reload caddy
+else
+  systemctl restart caddy
+fi
+log "Caddy configured and reloaded — certs auto-issue on first request"
+
 # ══════════════════════════════════════════════
-#  STEP 7 – PM2 ecosystem config
+#  STEP 6 – PM2 ecosystem config
 # ══════════════════════════════════════════════
 info "Setting up PM2 processes..."
 
@@ -321,15 +326,16 @@ pm2 save
 log "PM2 processes started"
 
 # ══════════════════════════════════════════════
-#  STEP 8 – Firewall (if ufw active)
+#  STEP 7 – Firewall (if ufw active)
 # ══════════════════════════════════════════════
 if command -v ufw &>/dev/null && ufw status | grep -q "active"; then
   info "Configuring firewall..."
-  ufw allow 80/tcp   >/dev/null 2>&1
-  ufw allow 443/tcp  >/dev/null 2>&1
-  ufw allow 25/tcp   >/dev/null 2>&1
-  ufw allow 22/tcp   >/dev/null 2>&1
-  log "Firewall rules added (80, 443, 25, 22)"
+  ufw allow 80/tcp    >/dev/null 2>&1   # HTTP / ACME challenge
+  ufw allow 443/tcp   >/dev/null 2>&1   # HTTPS
+  ufw allow 443/udp   >/dev/null 2>&1   # HTTP/3 (QUIC)
+  ufw allow 25/tcp    >/dev/null 2>&1   # SMTP
+  ufw allow 22/tcp    >/dev/null 2>&1   # SSH
+  log "Firewall rules added (80, 443/tcp, 443/udp, 25, 22)"
 fi
 
 # ══════════════════════════════════════════════
@@ -343,9 +349,11 @@ echo ""
 echo -e "  Web app:   ${CYAN}https://$DOMAIN${NC}"
 echo -e "  Admin:     ${CYAN}https://$DOMAIN/admin/domains${NC}"
 echo -e "  SMTP:      port 25"
-echo -e "  Socket.io: port $SOCKET_PORT"
+echo -e "  Socket.io: port $SOCKET_PORT (proxied via Caddy at /socket.io/*)"
 echo ""
 echo -e "  PM2 status:  ${YELLOW}pm2 status${NC}"
 echo -e "  PM2 logs:    ${YELLOW}pm2 logs${NC}"
-echo -e "  Redeploy:    ${YELLOW}sudo bash scripts/setup.sh${NC}"
+echo -e "  Caddy logs:  ${YELLOW}journalctl -u caddy -f${NC}"
+echo -e "  Caddyfile:   ${YELLOW}$CADDYFILE${NC}"
+echo -e "  Redeploy:    ${YELLOW}sudo bash scripts/deploy.sh${NC}"
 echo ""

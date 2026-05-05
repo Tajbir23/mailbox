@@ -16,29 +16,29 @@ Self-hosted, receive-only email SaaS platform built with **Next.js 14**, a custo
    - [1. Server Preparation](#1-server-preparation)
    - [2. Install Node.js (via NVM)](#2-install-nodejs-via-nvm)
    - [3. Install PM2](#3-install-pm2)
-   - [4. Install & Configure Nginx](#4-install--configure-nginx)
+   - [4. Install & Configure Caddy](#4-install--configure-caddy)
    - [5. Clone the Repository](#5-clone-the-repository)
    - [6. Configure Environment Variables](#6-configure-environment-variables)
    - [7. Install Dependencies & Build](#7-install-dependencies--build)
    - [8. Seed Admin User](#8-seed-admin-user)
    - [9. Start Services with PM2](#9-start-services-with-pm2)
-   - [10. SSL Certificate (Let's Encrypt)](#10-ssl-certificate-lets-encrypt)
-   - [11. Update Nginx for HTTPS](#11-update-nginx-for-https)
+   - [10. Caddyfile (HTTPS + Custom Domains)](#10-caddyfile-https--custom-domains)
 8. [DNS Configuration](#dns-configuration)
-9. [GitHub Actions CI/CD](#github-actions-cicd)
-10. [Admin Panel](#admin-panel)
-11. [SMTP Server Details](#smtp-server-details)
-12. [Socket.io Real-time](#socketio-real-time)
-13. [Security](#security)
-14. [Useful PM2 Commands](#useful-pm2-commands)
-15. [Troubleshooting](#troubleshooting)
-16. [License](#license)
+9. [White-Label Custom Domains (On-Demand TLS)](#white-label-custom-domains-on-demand-tls)
+10. [GitHub Actions CI/CD](#github-actions-cicd)
+11. [Admin Panel](#admin-panel)
+12. [SMTP Server Details](#smtp-server-details)
+13. [Socket.io Real-time](#socketio-real-time)
+14. [Security](#security)
+15. [Useful PM2 & Caddy Commands](#useful-pm2--caddy-commands)
+16. [Troubleshooting](#troubleshooting)
+17. [License](#license)
 
 ---
 
 ## Features
 
-- **White-Label Custom Domains** — Users can point their own domain completely to the service without redirect issues. 
+- **White-Label Custom Domains** — Users can point their own domain completely to the service without redirect issues. Caddy auto-provisions Let's Encrypt certs per domain via On-Demand TLS.
 - **Custom Domains** — Add your own domains with MX + TXT DNS verification
 - **Real-Time Inbox** — Emails arrive instantly via WebSocket (Socket.io)
 - **Team Sharing** — Share mailboxes with team members
@@ -61,8 +61,8 @@ Self-hosted, receive-only email SaaS platform built with **Next.js 14**, a custo
 | **Email** | Custom SMTP server (`smtp-server` + `mailparser`) |
 | **Real-time** | Socket.io 4 (server inside SMTP process, client in React) |
 | **Process Manager** | PM2 |
-| **Reverse Proxy** | Nginx |
-| **SSL** | Let's Encrypt (Certbot) |
+| **Reverse Proxy** | Caddy (with automatic HTTPS + On-Demand TLS) |
+| **SSL** | Let's Encrypt — fully automated by Caddy (no Certbot needed) |
 | **CI/CD** | GitHub Actions → SSH deploy |
 | **Design** | Glass morphism, gradient system, responsive |
 
@@ -82,6 +82,8 @@ mailbox-saas/
 │   │   ├── admin/           # Admin APIs (domains, users, stats)
 │   │   ├── domains/         # Public domain listing
 │   │   ├── mailboxes/       # Mailbox CRUD, emails, sharing
+│   │   ├── public/
+│   │   │   └── verify-domain/  # Endpoint Caddy hits for On-Demand TLS approval
 │   │   └── user/            # User domain management & verification
 │   ├── dashboard/           # User dashboard + inbox
 │   ├── layout.js            # Root layout with providers
@@ -111,7 +113,7 @@ mailbox-saas/
 │   ├── setup.sh             # One-command full server setup
 │   └── deploy.sh            # Quick redeploy (pull, build, restart)
 ├── ecosystem.config.js      # PM2 process configuration
-├── nginx-mailbox.conf       # Nginx site configuration (reference)
+├── Caddyfile                # Caddy reverse proxy + On-Demand TLS config
 ├── middleware.js             # Security headers, CSP, request tracing
 ├── next.config.js           # Next.js optimizations
 ├── tailwind.config.js       # Tailwind extended config
@@ -172,8 +174,8 @@ MAIL_SERVER_HOSTNAME=mail.yourdomain.com
 # Socket.io server port (runs inside smtp.js process)
 SOCKET_PORT=4000
 
-# Public Socket.io URL (browser connects here)
-NEXT_PUBLIC_SOCKET_URL=https://yourdomain.com           # Production (proxied by Nginx)
+# Public Socket.io URL (browser connects here — same domain, proxied by Caddy)
+NEXT_PUBLIC_SOCKET_URL=https://yourdomain.com
 # NEXT_PUBLIC_SOCKET_URL=http://localhost:4000           # Local dev
 ```
 
@@ -183,7 +185,7 @@ NEXT_PUBLIC_SOCKET_URL=https://yourdomain.com           # Production (proxied by
 
 ## Quick Auto-Setup (Recommended)
 
-One command to set up everything on a fresh **Ubuntu 22.04/24.04** VPS — Node.js, Nginx, SSL, PM2, build, and start.
+One command to set up everything on a fresh **Ubuntu 22.04/24.04** VPS — Node.js, Caddy, PM2, build, and start. Caddy handles HTTPS automatically — no Certbot, no manual SSL setup.
 
 ### Step 1: Clone the repo
 
@@ -217,7 +219,7 @@ MAIL_SERVER_HOSTNAME=mail.yourdomain.com
 SOCKET_PORT=4000
 NEXT_PUBLIC_SOCKET_URL=https://yourdomain.com
 
-# Domain (used by setup script for nginx config)
+# Domain (used by setup script for Caddyfile)
 DOMAIN=yourdomain.com
 ```
 
@@ -231,11 +233,11 @@ sudo bash scripts/setup.sh
 
 | Step | What it does |
 |---|---|
-| 1 | Install Node.js 20, Nginx, Certbot, PM2, Git |
+| 1 | Install Node.js 20, Caddy, PM2, Git |
 | 2 | Install npm dependencies |
 | 3 | Build the Next.js production bundle |
-| 4 | Generate & enable Nginx config (reads domain from `.env.local`) |
-| 5 | Obtain SSL certificate via Certbot (if domain points to server) |
+| 4 | Generate & install Caddyfile (reads domain from `.env.local`) |
+| 5 | Caddy automatically obtains SSL certs (no Certbot needed) |
 | 6 | Create PM2 ecosystem config |
 | 7 | Start Next.js web app + SMTP server via PM2 |
 | 8 | Enable PM2 startup on reboot |
@@ -258,7 +260,7 @@ Whenever you push new code, just run:
 sudo bash scripts/deploy.sh
 ```
 
-This will: `git pull` → `npm install` → `npm run build` → `pm2 restart` → `nginx reload`
+This will: `git pull` → `npm install` → `npm run build` → `pm2 restart` → `caddy reload`
 
 Or equivalently:
 
@@ -288,12 +290,13 @@ ssh root@YOUR_VPS_IP
 apt update && apt upgrade -y
 
 # Install essential tools
-apt install -y curl git ufw
+apt install -y curl git ufw debian-keyring debian-archive-keyring apt-transport-https
 
 # Configure firewall
 ufw allow OpenSSH
-ufw allow 80/tcp       # HTTP
+ufw allow 80/tcp       # HTTP (Caddy + ACME challenge)
 ufw allow 443/tcp      # HTTPS
+ufw allow 443/udp      # HTTP/3 (QUIC)
 ufw allow 25/tcp       # SMTP (incoming email)
 ufw enable
 
@@ -332,73 +335,27 @@ pm2 startup systemd
 # sudo env PATH=$PATH:/root/.nvm/versions/node/v20.x.x/bin pm2 startup systemd -u root --hp /root
 ```
 
-### 4. Install & Configure Nginx
+### 4. Install & Configure Caddy
+
+Caddy is a modern reverse proxy with **automatic HTTPS** built in. It obtains and renews Let's Encrypt certs by itself — no Certbot needed. It also supports **On-Demand TLS** for white-label custom domains (provisioning certs on first request).
 
 ```bash
-# Install Nginx
-apt install -y nginx
+# Add the official Caddy apt repo
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+  | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 
-# Create site config
-nano /etc/nginx/sites-available/mailbox
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+  | tee /etc/apt/sources.list.d/caddy-stable.list
+
+apt update
+apt install -y caddy
+
+# Verify
+caddy version
+systemctl status caddy
 ```
 
-Paste this Nginx config:
-
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com www.yourdomain.com;
-
-    # Let's Encrypt challenge
-    location /.well-known/acme-challenge/ {
-        root /var/www/html;
-    }
-
-    # Next.js app (port 3000)
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Socket.io WebSocket (port 4000)
-    location /socket.io/ {
-        proxy_pass http://127.0.0.1:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-    }
-
-    # Security headers
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-
-    client_max_body_size 25M;
-}
-```
-
-Enable the site:
-
-```bash
-# Enable site & remove default
-ln -s /etc/nginx/sites-available/mailbox /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
-
-# Test & reload
-nginx -t
-systemctl reload nginx
-```
+Caddy is installed as a systemd service and runs as the `caddy` user. Config lives at `/etc/caddy/Caddyfile`.
 
 ### 5. Clone the Repository
 
@@ -456,11 +413,8 @@ The seed script is in `scripts/seed-admin.js`. It creates:
 ### 9. Start Services with PM2
 
 ```bash
-# Start Next.js web server
-pm2 start npm --name "mailbox-web" -- start
-
-# Start SMTP + Socket.io server
-pm2 start smtp-server/smtp.js --name "mailbox-smtp"
+# Start all services using the ecosystem config
+pm2 start ecosystem.config.js
 
 # Save process list (survives reboot)
 pm2 save
@@ -483,54 +437,77 @@ Expected output:
 **Ports in use:**
 | Service | Port | Purpose |
 |---|---|---|
-| Next.js | 3000 | Web app (proxied by Nginx) |
+| Next.js | 3000 | Web app (proxied by Caddy) |
 | SMTP | 25 | Receives incoming emails |
-| Socket.io | 4000 | Real-time WebSocket (proxied by Nginx) |
-| Nginx | 80/443 | Reverse proxy + SSL termination |
+| Socket.io | 4000 | Real-time WebSocket (proxied by Caddy at `/socket.io/`) |
+| Caddy | 80/443 | Reverse proxy + automatic SSL |
 
-### 10. SSL Certificate (Let's Encrypt)
+### 10. Caddyfile (HTTPS + Custom Domains)
 
-```bash
-# Install Certbot
-apt install -y certbot python3-certbot-nginx
-
-# Obtain certificate (auto-configures Nginx)
-certbot --nginx -d yourdomain.com -d www.yourdomain.com
-
-# Follow prompts:
-# - Enter email for renewal notices
-# - Agree to ToS
-# - Choose redirect HTTP→HTTPS (recommended)
-
-# Verify auto-renewal
-certbot renew --dry-run
-```
-
-### 11. Update Nginx for HTTPS
-
-Certbot auto-modifies your Nginx config to add the SSL block. After running certbot, verify:
+Edit `/etc/caddy/Caddyfile`:
 
 ```bash
-nginx -t
-systemctl reload nginx
+nano /etc/caddy/Caddyfile
 ```
 
-Your site should now be accessible at `https://yourdomain.com`.
+Paste this configuration (replace `yourdomain.com` with your actual domain):
 
-Make sure your `.env.production` uses HTTPS URLs:
+```caddy
+{
+    # On-Demand TLS approval endpoint — Caddy asks the app whether to issue
+    # a cert for an arbitrary hostname (used for white-label custom domains).
+    on_demand_tls {
+        ask http://127.0.0.1:3000/api/public/verify-domain
+    }
+}
 
-```env
-NEXTAUTH_URL=https://yourdomain.com
-NEXT_PUBLIC_SOCKET_URL=https://yourdomain.com
+# 1) Specific route for the main domain (always-on TLS)
+yourdomain.com, www.yourdomain.com {
+    reverse_proxy 127.0.0.1:3000
+
+    # Socket.io routing
+    handle /socket.io/* {
+        reverse_proxy 127.0.0.1:4000
+    }
+}
+
+# 2) Catch-all for On-Demand TLS custom domains
+#    Any other hostname pointed at this server gets a cert auto-issued
+#    after the /api/public/verify-domain endpoint approves it.
+https:// {
+    tls {
+        on_demand
+    }
+
+    reverse_proxy 127.0.0.1:3000
+
+    # Socket.io routing for custom domains
+    handle /socket.io/* {
+        reverse_proxy 127.0.0.1:4000
+    }
+}
 ```
 
-Then rebuild and restart:
+Validate, format, and reload:
 
 ```bash
-cd /var/www/mailbox-saas
-npm run build
-pm2 restart all
+# Validate syntax
+caddy validate --config /etc/caddy/Caddyfile
+
+# Format the file in place (optional, makes it canonical)
+caddy fmt --overwrite /etc/caddy/Caddyfile
+
+# Reload Caddy (zero-downtime)
+systemctl reload caddy
+
+# Or full restart if reload fails
+systemctl restart caddy
+
+# Watch logs to confirm cert issuance
+journalctl -u caddy -f
 ```
+
+That's it — Caddy will automatically obtain a Let's Encrypt cert for your main domain on first request. No Certbot, no manual renewal. Certs auto-renew in the background.
 
 ---
 
@@ -553,10 +530,41 @@ When users add their own domain (e.g., `customdomain.com`), they need to configu
 
 | Type | Name | Value | TTL |
 |---|---|---|---|
+| **A** | `@` | `YOUR_VPS_IP` | 300 |
 | **MX** | `@` | `mail.yourdomain.com` (Priority: 10) | 300 |
 | **TXT** | `@` | `mailbox-verify=<token>` (provided by the app) | 300 |
 
-The platform verifies both MX and TXT records before activating the domain.
+The platform verifies both MX and TXT records before activating the domain. Once verified, Caddy auto-issues an HTTPS cert for the user's domain on first browser request.
+
+---
+
+## White-Label Custom Domains (On-Demand TLS)
+
+Caddy's killer feature for this app: **a user adds their own domain, points DNS at your server, and HTTPS just works** — no manual cert provisioning.
+
+### How it works
+
+1. User adds `customdomain.com` in your dashboard, app stores it in MongoDB after MX/TXT verification.
+2. User points an `A` record at your VPS.
+3. A browser hits `https://customdomain.com`.
+4. Caddy doesn't have a cert yet, so it calls the **`ask` endpoint**: `GET http://127.0.0.1:3000/api/public/verify-domain?domain=customdomain.com`.
+5. Your Next.js app checks the database — is this domain verified and approved? Returns `200 OK` (approve) or any non-2xx (reject).
+6. If approved, Caddy obtains a Let's Encrypt cert, caches it, and serves the site.
+7. On future requests, Caddy uses the cached cert (auto-renewing in the background).
+
+### What you need
+
+- **`/api/public/verify-domain`** route in your Next.js app — must return `200` for approved domains, non-2xx otherwise. Already implemented in [app/api/public/verify-domain/](app/api/public/verify-domain/).
+- The catch-all `https://` block in your Caddyfile (shown in [Section 10](#10-caddyfile-https--custom-domains)).
+- The global `on_demand_tls { ask ... }` directive (also in Section 10).
+
+### NextAuth across custom domains
+
+NextAuth normally locks to a single `NEXTAUTH_URL`. To make login work across arbitrary user domains, the auth route updates `process.env.NEXTAUTH_URL` per-request based on the incoming `Host` header. See [app/api/auth/[...nextauth]/route.js](app/api/auth/[...nextauth]/route.js).
+
+### Rate limiting & abuse protection
+
+Caddy will refuse to issue a cert if the `ask` endpoint says no — so make sure that endpoint is strict. Don't let unverified domains through. Let's Encrypt rate-limits issuance to ~50 certs per registered domain per week, which can be hit by a malicious user listing thousands of fake domains.
 
 ---
 
@@ -592,7 +600,7 @@ cat ~/.ssh/mailbox_deploy
 
 ```
 Push to main → GitHub Actions → SSH into VPS →
-  git pull → npm ci → npm run build → pm2 restart all
+  git pull → npm ci → npm run build → pm2 restart all → systemctl reload caddy
 ```
 
 ---
@@ -622,18 +630,6 @@ Access admin features at `/admin` (requires admin role).
 
 ---
 
-## Setting Up White-label Custom Domains
-
-To allow your users to load your entire application smoothly on their own domains without seeing your base domain:
-
-1. **DNS Setup for Users:** Tell them to create an `A` record pointing to your server's IP address or a `CNAME` targeting your main domain.
-2. **Nginx Catch-All:** Ensure Nginx listens using `default_server` and accepts all domains (`server_name _;`) so it proxies any domain traffic directly to your Next.js app.
-3. **NextAuth Trick:** NextAuth will automatically switch context based on the modified Setup `/app/api/auth/[...nextauth]/route.js` (which updates `process.env.NEXTAUTH_URL` iteratively) allowing users to safely log in from their own domains.
-
-> **Note on Auto SSL:** For complete Custom Domains HTTPS support without manual certificates, you may want to migrate from Nginx to **Caddy Server** (`caddyserver.com`), thanks to its robust feature of "On-Demand TLS". Caddy will automatically provision Let's Encrypt certificates per each new custom domain on request.
-
----
-
 ## SMTP Server Details
 
 The custom SMTP server (`smtp-server/smtp.js`) is a standalone Node.js process that:
@@ -650,7 +646,7 @@ Config:
 - Max concurrent connections: 100
 - Max message size: 25 MB
 - No authentication required (receive-only)
-- STARTTLS disabled (Nginx handles SSL termination)
+- STARTTLS disabled (Caddy is the public TLS terminator; SMTP runs on port 25 plaintext for inbound mail, which is the standard)
 
 ## Socket.io Real-time
 
@@ -667,7 +663,7 @@ Socket.io runs inside the SMTP server process on port 4000.
 | `new-email` | Server → Client | New email received in a mailbox |
 | `dashboard-new-email` | Server → Client | New email notification for dashboard |
 
-In production, Socket.io is proxied through Nginx at `/socket.io/` path, so the browser connects to the same domain (HTTPS) with automatic WebSocket upgrade.
+In production, Socket.io is proxied through Caddy at the `/socket.io/*` path (handled by the `handle` block in the Caddyfile). The browser connects to the same domain over HTTPS — Caddy handles the WebSocket upgrade transparently. No special config is needed; `reverse_proxy` in Caddy supports WebSockets out of the box.
 
 ---
 
@@ -687,10 +683,13 @@ The application implements multiple security layers:
 | **Auth** | JWT tokens, bcrypt password hashing (12 rounds) |
 | **Request Tracing** | Unique X-Request-Id on every request |
 | **No Fingerprinting** | X-Powered-By & Server headers removed |
+| **TLS** | Caddy serves modern TLS (1.2/1.3) by default with strong ciphers |
 
 ---
 
-## Useful PM2 Commands
+## Useful PM2 & Caddy Commands
+
+### PM2
 
 ```bash
 pm2 status                    # List all processes
@@ -706,12 +705,52 @@ pm2 monit                     # Real-time monitoring dashboard
 pm2 save                      # Save process list for reboot
 ```
 
+### Caddy
+
+```bash
+# Service management
+systemctl status caddy        # Service status
+systemctl reload caddy        # Reload config (zero-downtime)
+systemctl restart caddy       # Full restart
+systemctl enable caddy        # Auto-start on boot
+
+# Config
+caddy validate --config /etc/caddy/Caddyfile     # Validate syntax
+caddy fmt --overwrite /etc/caddy/Caddyfile        # Format Caddyfile
+caddy reload --config /etc/caddy/Caddyfile        # Reload (alternative to systemctl reload)
+
+# Logs
+journalctl -u caddy -f         # Live logs
+journalctl -u caddy --since "10 min ago"
+journalctl -u caddy | grep -i error
+
+# Cert inspection
+ls /var/lib/caddy/.local/share/caddy/certificates/  # Stored certs
+caddy list-certs               # If you have caddy admin enabled
+```
+
 ---
 
 ## Troubleshooting
 
 ### Build fails with "Dynamic server usage" error
 Add `export const dynamic = "force-dynamic";` at the top of the affected API route file. This is needed for routes that use `getServerSession` (which reads headers).
+
+### Build fails with `sh: 1: next: not found`
+The shell's `PATH` may not be exported to npm scripts. Either run:
+
+```bash
+echo 'export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"' >> /root/.bashrc
+source /root/.bashrc
+```
+
+…or run npm directly with PATH inline:
+
+```bash
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH" npm run build
+```
+
+The `scripts/deploy.sh` already exports PATH explicitly to avoid this.
 
 ### SMTP not receiving emails
 ```bash
@@ -729,11 +768,23 @@ pm2 logs mailbox-smtp
 ```
 
 ### Socket.io not connecting
-- Ensure Nginx has the `/socket.io/` location block with WebSocket upgrade headers
-- Check that `NEXT_PUBLIC_SOCKET_URL` matches your production domain
+- Ensure the Caddyfile has the `handle /socket.io/*` block proxying to `127.0.0.1:4000`
+- Check that `NEXT_PUBLIC_SOCKET_URL` matches your production domain (and is HTTPS)
 - Check PM2 logs: `pm2 logs mailbox-smtp`
+- Caddy logs: `journalctl -u caddy -f`
 
-### Nginx 502 Bad Gateway
+### Caddy port conflict (Address already in use)
+Something else (often a stale nginx) is bound to ports 80/443. Find and stop it:
+
+```bash
+ss -tlnp | grep -E ':80 |:443 '
+lsof -i :80
+systemctl stop nginx 2>/dev/null
+systemctl disable nginx 2>/dev/null
+systemctl restart caddy
+```
+
+### Caddy 502 / Bad Gateway
 ```bash
 # Check if Next.js is running
 pm2 status
@@ -741,27 +792,34 @@ pm2 status
 # If stopped, restart
 pm2 restart mailbox-web
 
-# Check Nginx error log
-tail -f /var/log/nginx/error.log
+# Tail Caddy logs
+journalctl -u caddy -f
 ```
 
-### SSL certificate renewal
-```bash
-# Test renewal
-certbot renew --dry-run
+### Cert not being issued for custom domain (On-Demand TLS)
+1. Confirm the user's `A` record actually points at your VPS: `dig +short customdomain.com`
+2. Confirm `/api/public/verify-domain?domain=customdomain.com` returns `200` for an approved domain. Test:
+   ```bash
+   curl -i "http://127.0.0.1:3000/api/public/verify-domain?domain=customdomain.com"
+   ```
+3. Watch Caddy logs while triggering the request: `journalctl -u caddy -f`
+4. Check Let's Encrypt rate limits — you can hit them if the `ask` endpoint is too permissive.
 
-# Force renewal
-certbot renew --force-renewal
-
-# Certbot sets up auto-renewal via systemd timer
-systemctl status certbot.timer
-```
-
-### Domain verification failing
+### Domain verification failing (MX/TXT)
 - DNS propagation can take up to 48 hours
 - Use `dig MX yourdomain.com` to verify MX records
 - Use `dig TXT yourdomain.com` to verify TXT records
 - The MX record must point to your `MAIL_SERVER_HOSTNAME`
+
+### Caddy not auto-renewing certs
+Caddy renews automatically when certs are within 30 days of expiry. To force a check:
+
+```bash
+systemctl restart caddy
+journalctl -u caddy --since "5 min ago" | grep -i renew
+```
+
+Stored certs live under `/var/lib/caddy/.local/share/caddy/certificates/`.
 
 ---
 
