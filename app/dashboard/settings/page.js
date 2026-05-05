@@ -143,6 +143,18 @@ export default function SettingsPage() {
         <p className="section-subtitle">Update your profile information and password.</p>
       </div>
 
+      <div className="card p-6 sm:p-8 flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-surface-900 mb-1">API access</h2>
+          <p className="text-sm text-surface-500">
+            Manage API keys to use the Mailbox REST API from scripts and integrations.
+          </p>
+        </div>
+        <Link href="/dashboard/api-keys" className="btn-secondary py-2 px-4 text-sm shrink-0">
+          API keys →
+        </Link>
+      </div>
+
       {/* Profile / Email */}
       <div className="card p-6 sm:p-8">
         <h2 className="text-lg font-semibold text-surface-900 mb-1">Profile</h2>
