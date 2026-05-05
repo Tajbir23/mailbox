@@ -1,10 +1,7 @@
-import Link from "next/link";
+"use client";
 
-export const metadata = {
-  title: "API Documentation – Mailbox",
-  description:
-    "REST API reference for managing mailboxes, emails, domains and your profile programmatically.",
-};
+import Link from "next/link";
+import { useState } from "react";
 
 function Endpoint({ method, path, children }) {
   const colors = {
@@ -34,6 +31,33 @@ function Code({ children }) {
   );
 }
 
+function Tabs({ samples }) {
+  const langs = Object.keys(samples);
+  const [active, setActive] = useState(langs[0]);
+  return (
+    <div className="my-4">
+      <div className="flex gap-1 border-b border-surface-200 mb-0">
+        {langs.map((l) => (
+          <button
+            key={l}
+            onClick={() => setActive(l)}
+            className={`px-4 py-2 text-xs font-medium rounded-t-lg transition ${
+              active === l
+                ? "bg-surface-900 text-emerald-200"
+                : "bg-surface-100 text-surface-600 hover:bg-surface-200"
+            }`}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+      <pre className="bg-surface-900 text-emerald-200 text-xs rounded-b-lg rounded-tr-lg p-4 overflow-x-auto -mt-px">
+        <code>{samples[active]}</code>
+      </pre>
+    </div>
+  );
+}
+
 export default function ApiDocsPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
@@ -43,8 +67,8 @@ export default function ApiDocsPage() {
         </Link>
         <h1 className="text-4xl font-bold mt-3 mb-2">Mailbox API</h1>
         <p className="text-surface-600">
-          A simple REST API to manage mailboxes, read incoming emails, manage your domains, and
-          update your profile — all the things you can do from the dashboard, programmatically.
+          REST API to manage domains, create mailboxes, and read or delete incoming emails
+          programmatically. Examples in Node.js, Python and PHP.
         </p>
       </div>
 
@@ -56,33 +80,15 @@ export default function ApiDocsPage() {
           <Link href="/dashboard/api-keys" className="text-brand-600 underline">
             API keys page
           </Link>
-          . Every request must include the key in the <code>Authorization</code> header:
+          . Pass it in the <code>Authorization</code> header on every request:
         </p>
         <Code>{`Authorization: Bearer mb_<your-secret-key>`}</Code>
         <ul className="text-sm text-surface-600 mt-4 list-disc pl-5 space-y-1">
           <li>The full key is shown only once at creation — store it securely.</li>
           <li>Keys can be revoked at any time; revocation is immediate.</li>
-          <li>An optional <code>expiresAt</code> can be set when creating a key.</li>
-          <li>Keys cannot be used to mint or list other keys (session-only).</li>
+          <li>You can set an optional expiry on a key.</li>
+          <li>API keys cannot mint or list other keys (session-only).</li>
         </ul>
-      </section>
-
-      {/* Quick start */}
-      <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-3">Quick start</h2>
-        <Code>{`# List your mailboxes
-curl https://your-host/api/v1/mailboxes \\
-  -H "Authorization: Bearer mb_xxx"
-
-# Create a mailbox
-curl -X POST https://your-host/api/v1/mailboxes \\
-  -H "Authorization: Bearer mb_xxx" \\
-  -H "Content-Type: application/json" \\
-  -d '{"prefix":"hello","domain":"example.com"}'
-
-# Read incoming emails
-curl https://your-host/api/v1/mailboxes/<mailboxId>/emails \\
-  -H "Authorization: Bearer mb_xxx"`}</Code>
       </section>
 
       {/* Base URL */}
@@ -95,59 +101,123 @@ curl https://your-host/api/v1/mailboxes/<mailboxId>/emails \\
         </p>
       </section>
 
-      {/* Profile */}
+      {/* Quick start */}
       <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-3">Profile</h2>
-        <Endpoint method="GET" path="/api/v1/profile">
-          <p>Returns the authenticated user's profile.</p>
-          <Code>{`{
-  "id": "...",
-  "name": "Ada",
-  "email": "ada@example.com",
-  "role": "user",
-  "createdAt": "2026-01-15T..."
-}`}</Code>
-        </Endpoint>
-        <Endpoint method="PATCH" path="/api/v1/profile">
-          <p>
-            Update your name. Email and password changes are blocked when
-            authenticating with an API key — sign in to the dashboard for those.
-          </p>
-          <Code>{`{ "name": "Ada Lovelace" }`}</Code>
-        </Endpoint>
+        <h2 className="text-2xl font-semibold mb-3">Quick start</h2>
+        <p className="text-sm text-surface-600 mb-3">
+          List your mailboxes — the simplest call to verify your key works.
+        </p>
+        <Tabs
+          samples={{
+            "Node.js": `import fetch from "node-fetch";
+
+const KEY = process.env.MAILBOX_API_KEY;
+const BASE = "https://your-host/api/v1";
+
+const res = await fetch(\`\${BASE}/mailboxes\`, {
+  headers: { Authorization: \`Bearer \${KEY}\` },
+});
+console.log(await res.json());`,
+            Python: `import os, requests
+
+KEY = os.environ["MAILBOX_API_KEY"]
+BASE = "https://your-host/api/v1"
+
+r = requests.get(f"{BASE}/mailboxes",
+                 headers={"Authorization": f"Bearer {KEY}"})
+print(r.json())`,
+            PHP: `<?php
+$key  = getenv("MAILBOX_API_KEY");
+$base = "https://your-host/api/v1";
+
+$ch = curl_init("$base/mailboxes");
+curl_setopt_array($ch, [
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_HTTPHEADER     => ["Authorization: Bearer $key"],
+]);
+$body = curl_exec($ch);
+curl_close($ch);
+print_r(json_decode($body, true));`,
+          }}
+        />
       </section>
 
       {/* Domains */}
       <section className="mb-10">
         <h2 className="text-2xl font-semibold mb-3">Domains</h2>
+        <p className="text-sm text-surface-600 mb-3">
+          You need a verified domain before you can create a mailbox on it. Use{" "}
+          <code>scope=available</code> to also list verified public domains anyone can use.
+        </p>
         <Endpoint method="GET" path="/api/v1/domains">
-          <p>List domains you own. Use <code>?scope=available</code> to also include verified public domains you can create mailboxes on.</p>
+          <p>List domains you own.</p>
+        </Endpoint>
+        <Endpoint method="GET" path="/api/v1/domains?scope=available">
+          <p>List domains you can create mailboxes on (your own + verified public).</p>
         </Endpoint>
         <Endpoint method="POST" path="/api/v1/domains">
-          <p>Add a new domain (private, pending DNS verification).</p>
+          <p>Add a new domain. Starts as private + pending DNS verification.</p>
           <Code>{`{ "name": "mydomain.com" }`}</Code>
         </Endpoint>
         <Endpoint method="GET" path="/api/v1/domains/:id">
-          <p>Get a single domain you own (includes DNS verification records).</p>
+          <p>Fetch a single domain (includes the DNS verification token).</p>
         </Endpoint>
         <Endpoint method="PATCH" path="/api/v1/domains/:id">
-          <p>Toggle visibility. Domain must be verified before going public.</p>
+          <p>Toggle visibility. Only verified domains can be made public.</p>
           <Code>{`{ "visibility": "public" }`}</Code>
         </Endpoint>
         <Endpoint method="DELETE" path="/api/v1/domains/:id">
           <p>Delete a domain you own.</p>
         </Endpoint>
+
+        <h3 className="text-lg font-semibold mt-6 mb-2">Add a domain</h3>
+        <Tabs
+          samples={{
+            "Node.js": `const res = await fetch(\`\${BASE}/domains\`, {
+  method: "POST",
+  headers: {
+    Authorization: \`Bearer \${KEY}\`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ name: "mydomain.com" }),
+});
+console.log(await res.json());`,
+            Python: `r = requests.post(
+  f"{BASE}/domains",
+  headers={"Authorization": f"Bearer {KEY}"},
+  json={"name": "mydomain.com"},
+)
+print(r.json())`,
+            PHP: `$ch = curl_init("$base/domains");
+curl_setopt_array($ch, [
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_POST           => true,
+  CURLOPT_HTTPHEADER     => [
+    "Authorization: Bearer $key",
+    "Content-Type: application/json",
+  ],
+  CURLOPT_POSTFIELDS     => json_encode(["name" => "mydomain.com"]),
+]);
+$body = curl_exec($ch);
+curl_close($ch);
+print_r(json_decode($body, true));`,
+          }}
+        />
       </section>
 
       {/* Mailboxes */}
       <section className="mb-10">
         <h2 className="text-2xl font-semibold mb-3">Mailboxes</h2>
+        <p className="text-sm text-surface-600 mb-3">
+          A mailbox is an email address (<code>prefix@domain</code>) that receives mail. You can
+          create unlimited mailboxes on any domain you have access to.
+        </p>
         <Endpoint method="GET" path="/api/v1/mailboxes">
           <p>List mailboxes you own or that are shared with you.</p>
         </Endpoint>
         <Endpoint method="POST" path="/api/v1/mailboxes">
           <p>
-            Create a new mailbox. Pass either <code>domainId</code> or <code>domain</code> (the
+            Create a mailbox. Pass either <code>domainId</code> or <code>domain</code> (the
             domain name).
           </p>
           <Code>{`{
@@ -157,7 +227,7 @@ curl https://your-host/api/v1/mailboxes/<mailboxId>/emails \\
 }`}</Code>
         </Endpoint>
         <Endpoint method="GET" path="/api/v1/mailboxes/:id">
-          <p>Get a single mailbox.</p>
+          <p>Fetch a single mailbox.</p>
         </Endpoint>
         <Endpoint method="PATCH" path="/api/v1/mailboxes/:id">
           <p>
@@ -173,21 +243,87 @@ curl https://your-host/api/v1/mailboxes/<mailboxId>/emails \\
         <Endpoint method="DELETE" path="/api/v1/mailboxes/:id">
           <p>Delete a mailbox and all of its emails. Owner only.</p>
         </Endpoint>
+
+        <h3 className="text-lg font-semibold mt-6 mb-2">Create a mailbox</h3>
+        <Tabs
+          samples={{
+            "Node.js": `const res = await fetch(\`\${BASE}/mailboxes\`, {
+  method: "POST",
+  headers: {
+    Authorization: \`Bearer \${KEY}\`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    prefix: "support",
+    domain: "example.com",
+  }),
+});
+const mailbox = await res.json();
+console.log(mailbox.emailAddress); // support@example.com`,
+            Python: `r = requests.post(
+  f"{BASE}/mailboxes",
+  headers={"Authorization": f"Bearer {KEY}"},
+  json={"prefix": "support", "domain": "example.com"},
+)
+mailbox = r.json()
+print(mailbox["emailAddress"])  # support@example.com`,
+            PHP: `$ch = curl_init("$base/mailboxes");
+curl_setopt_array($ch, [
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_POST           => true,
+  CURLOPT_HTTPHEADER     => [
+    "Authorization: Bearer $key",
+    "Content-Type: application/json",
+  ],
+  CURLOPT_POSTFIELDS     => json_encode([
+    "prefix" => "support",
+    "domain" => "example.com",
+  ]),
+]);
+$mailbox = json_decode(curl_exec($ch), true);
+curl_close($ch);
+echo $mailbox["emailAddress"]; // support@example.com`,
+          }}
+        />
+
+        <h3 className="text-lg font-semibold mt-6 mb-2">Delete a mailbox</h3>
+        <Tabs
+          samples={{
+            "Node.js": `await fetch(\`\${BASE}/mailboxes/\${id}\`, {
+  method: "DELETE",
+  headers: { Authorization: \`Bearer \${KEY}\` },
+});`,
+            Python: `requests.delete(
+  f"{BASE}/mailboxes/{id}",
+  headers={"Authorization": f"Bearer {KEY}"},
+)`,
+            PHP: `$ch = curl_init("$base/mailboxes/$id");
+curl_setopt_array($ch, [
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_CUSTOMREQUEST  => "DELETE",
+  CURLOPT_HTTPHEADER     => ["Authorization: Bearer $key"],
+]);
+curl_exec($ch);
+curl_close($ch);`,
+          }}
+        />
       </section>
 
       {/* Emails */}
       <section className="mb-10">
         <h2 className="text-2xl font-semibold mb-3">Emails</h2>
+        <p className="text-sm text-surface-600 mb-3">
+          Inbound emails arrive in real time and are auto-deleted after 3 days unless you delete
+          them sooner.
+        </p>
         <Endpoint method="GET" path="/api/v1/mailboxes/:id/emails">
           <p>
-            List emails in a mailbox. Supports <code>?page</code>, <code>?limit</code> (max 100),
-            and <code>?unread=true</code>.
+            List emails. Supports <code>?page</code>, <code>?limit</code> (max 100), and{" "}
+            <code>?unread=true</code>.
           </p>
         </Endpoint>
         <Endpoint method="GET" path="/api/v1/mailboxes/:id/emails/:emailId">
-          <p>
-            Fetch a single email (full body and attachment metadata). Marks it read automatically.
-          </p>
+          <p>Fetch a single email (full body + attachment metadata). Auto-marks as read.</p>
         </Endpoint>
         <Endpoint method="PATCH" path="/api/v1/mailboxes/:id/emails/:emailId">
           <p>
@@ -197,13 +333,227 @@ curl https://your-host/api/v1/mailboxes/<mailboxId>/emails \\
         </Endpoint>
         <Endpoint method="DELETE" path="/api/v1/mailboxes/:id/emails/:emailId">
           <p>
-            Delete an email. Owner deletes globally; shared users hide it from their own view only.
+            Delete a single email. Owner removes for everyone; shared users hide it from their own
+            view only.
           </p>
         </Endpoint>
         <Endpoint method="DELETE" path="/api/v1/mailboxes/:id/emails">
           <p>Bulk-delete emails.</p>
           <Code>{`{ "emailIds": ["id1", "id2", "id3"] }`}</Code>
         </Endpoint>
+
+        <h3 className="text-lg font-semibold mt-6 mb-2">List unread emails</h3>
+        <Tabs
+          samples={{
+            "Node.js": `const res = await fetch(
+  \`\${BASE}/mailboxes/\${mailboxId}/emails?unread=true&limit=50\`,
+  { headers: { Authorization: \`Bearer \${KEY}\` } }
+);
+const { emails, total } = await res.json();
+for (const e of emails) {
+  console.log(e.from, "→", e.subject);
+}`,
+            Python: `r = requests.get(
+  f"{BASE}/mailboxes/{mailbox_id}/emails",
+  headers={"Authorization": f"Bearer {KEY}"},
+  params={"unread": "true", "limit": 50},
+)
+data = r.json()
+for e in data["emails"]:
+    print(e["from"], "→", e["subject"])`,
+            PHP: `$url = "$base/mailboxes/$mailboxId/emails?unread=true&limit=50";
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_HTTPHEADER     => ["Authorization: Bearer $key"],
+]);
+$data = json_decode(curl_exec($ch), true);
+curl_close($ch);
+
+foreach ($data["emails"] as $e) {
+  echo $e["from"] . " → " . $e["subject"] . PHP_EOL;
+}`,
+          }}
+        />
+
+        <h3 className="text-lg font-semibold mt-6 mb-2">Fetch full email body</h3>
+        <Tabs
+          samples={{
+            "Node.js": `const res = await fetch(
+  \`\${BASE}/mailboxes/\${mailboxId}/emails/\${emailId}\`,
+  { headers: { Authorization: \`Bearer \${KEY}\` } }
+);
+const email = await res.json();
+console.log(email.bodyText);`,
+            Python: `r = requests.get(
+  f"{BASE}/mailboxes/{mailbox_id}/emails/{email_id}",
+  headers={"Authorization": f"Bearer {KEY}"},
+)
+print(r.json()["bodyText"])`,
+            PHP: `$ch = curl_init("$base/mailboxes/$mailboxId/emails/$emailId");
+curl_setopt_array($ch, [
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_HTTPHEADER     => ["Authorization: Bearer $key"],
+]);
+$email = json_decode(curl_exec($ch), true);
+curl_close($ch);
+echo $email["bodyText"];`,
+          }}
+        />
+
+        <h3 className="text-lg font-semibold mt-6 mb-2">Delete an email</h3>
+        <Tabs
+          samples={{
+            "Node.js": `await fetch(
+  \`\${BASE}/mailboxes/\${mailboxId}/emails/\${emailId}\`,
+  {
+    method: "DELETE",
+    headers: { Authorization: \`Bearer \${KEY}\` },
+  }
+);`,
+            Python: `requests.delete(
+  f"{BASE}/mailboxes/{mailbox_id}/emails/{email_id}",
+  headers={"Authorization": f"Bearer {KEY}"},
+)`,
+            PHP: `$ch = curl_init("$base/mailboxes/$mailboxId/emails/$emailId");
+curl_setopt_array($ch, [
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_CUSTOMREQUEST  => "DELETE",
+  CURLOPT_HTTPHEADER     => ["Authorization: Bearer $key"],
+]);
+curl_exec($ch);
+curl_close($ch);`,
+          }}
+        />
+
+        <h3 className="text-lg font-semibold mt-6 mb-2">Bulk delete emails</h3>
+        <Tabs
+          samples={{
+            "Node.js": `await fetch(
+  \`\${BASE}/mailboxes/\${mailboxId}/emails\`,
+  {
+    method: "DELETE",
+    headers: {
+      Authorization: \`Bearer \${KEY}\`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ emailIds: ids }),
+  }
+);`,
+            Python: `requests.delete(
+  f"{BASE}/mailboxes/{mailbox_id}/emails",
+  headers={"Authorization": f"Bearer {KEY}"},
+  json={"emailIds": ids},
+)`,
+            PHP: `$ch = curl_init("$base/mailboxes/$mailboxId/emails");
+curl_setopt_array($ch, [
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_CUSTOMREQUEST  => "DELETE",
+  CURLOPT_HTTPHEADER     => [
+    "Authorization: Bearer $key",
+    "Content-Type: application/json",
+  ],
+  CURLOPT_POSTFIELDS     => json_encode(["emailIds" => $ids]),
+]);
+curl_exec($ch);
+curl_close($ch);`,
+          }}
+        />
+      </section>
+
+      {/* Polling pattern */}
+      <section className="mb-10">
+        <h2 className="text-2xl font-semibold mb-3">Full example — poll for new mail</h2>
+        <p className="text-sm text-surface-600 mb-3">
+          Create a mailbox, then poll for unread mail every 5 seconds until something arrives.
+        </p>
+        <Tabs
+          samples={{
+            "Node.js": `import fetch from "node-fetch";
+
+const KEY  = process.env.MAILBOX_API_KEY;
+const BASE = "https://your-host/api/v1";
+const H    = { Authorization: \`Bearer \${KEY}\` };
+
+const create = await fetch(\`\${BASE}/mailboxes\`, {
+  method: "POST",
+  headers: { ...H, "Content-Type": "application/json" },
+  body: JSON.stringify({ prefix: "bot-" + Date.now(), domain: "example.com" }),
+}).then((r) => r.json());
+
+console.log("Send mail to:", create.emailAddress);
+
+while (true) {
+  const { emails } = await fetch(
+    \`\${BASE}/mailboxes/\${create.id}/emails?unread=true\`,
+    { headers: H }
+  ).then((r) => r.json());
+
+  if (emails.length) {
+    console.log("Got:", emails[0].subject);
+    break;
+  }
+  await new Promise((r) => setTimeout(r, 5000));
+}`,
+            Python: `import os, time, requests
+
+KEY  = os.environ["MAILBOX_API_KEY"]
+BASE = "https://your-host/api/v1"
+H    = {"Authorization": f"Bearer {KEY}"}
+
+mb = requests.post(
+  f"{BASE}/mailboxes",
+  headers=H,
+  json={"prefix": f"bot-{int(time.time())}", "domain": "example.com"},
+).json()
+
+print("Send mail to:", mb["emailAddress"])
+
+while True:
+    r = requests.get(
+      f"{BASE}/mailboxes/{mb['id']}/emails",
+      headers=H,
+      params={"unread": "true"},
+    )
+    emails = r.json()["emails"]
+    if emails:
+        print("Got:", emails[0]["subject"])
+        break
+    time.sleep(5)`,
+            PHP: `<?php
+$key  = getenv("MAILBOX_API_KEY");
+$base = "https://your-host/api/v1";
+$H    = ["Authorization: Bearer $key", "Content-Type: application/json"];
+
+function api($url, $method = "GET", $body = null, $H = []) {
+  $ch = curl_init($url);
+  curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_CUSTOMREQUEST  => $method,
+    CURLOPT_HTTPHEADER     => $H,
+  ]);
+  if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+  $r = json_decode(curl_exec($ch), true);
+  curl_close($ch);
+  return $r;
+}
+
+$mb = api("$base/mailboxes", "POST",
+  ["prefix" => "bot-" . time(), "domain" => "example.com"], $H);
+
+echo "Send mail to: " . $mb["emailAddress"] . PHP_EOL;
+
+while (true) {
+  $data = api("$base/mailboxes/" . $mb["id"] . "/emails?unread=true",
+              "GET", null, $H);
+  if (count($data["emails"]) > 0) {
+    echo "Got: " . $data["emails"][0]["subject"] . PHP_EOL;
+    break;
+  }
+  sleep(5);
+}`,
+          }}
+        />
       </section>
 
       {/* Errors */}
@@ -219,7 +569,7 @@ curl https://your-host/api/v1/mailboxes/<mailboxId>/emails \\
           <tbody className="divide-y divide-surface-100">
             <tr>
               <td className="py-2 pr-4 font-mono">400</td>
-              <td>Validation failure (missing fields, bad format)</td>
+              <td>Validation failure (missing fields, bad ID, bad format)</td>
             </tr>
             <tr>
               <td className="py-2 pr-4 font-mono">401</td>
@@ -227,19 +577,15 @@ curl https://your-host/api/v1/mailboxes/<mailboxId>/emails \\
             </tr>
             <tr>
               <td className="py-2 pr-4 font-mono">403</td>
-              <td>Authenticated but not allowed (e.g. private domain)</td>
+              <td>Authenticated but not allowed (e.g. private domain you don't own)</td>
             </tr>
             <tr>
               <td className="py-2 pr-4 font-mono">404</td>
-              <td>Resource not found or you do not have access</td>
+              <td>Resource not found or no access</td>
             </tr>
             <tr>
               <td className="py-2 pr-4 font-mono">409</td>
-              <td>Conflict (duplicate email, taken mailbox, etc.)</td>
-            </tr>
-            <tr>
-              <td className="py-2 pr-4 font-mono">429</td>
-              <td>Rate limit exceeded</td>
+              <td>Conflict (mailbox already taken, domain already registered)</td>
             </tr>
             <tr>
               <td className="py-2 pr-4 font-mono">500</td>
@@ -247,48 +593,6 @@ curl https://your-host/api/v1/mailboxes/<mailboxId>/emails \\
             </tr>
           </tbody>
         </table>
-      </section>
-
-      {/* Examples */}
-      <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-3">JavaScript example</h2>
-        <Code>{`const KEY = process.env.MAILBOX_API_KEY;
-const BASE = "https://your-host/api/v1";
-
-async function api(path, init = {}) {
-  const res = await fetch(BASE + path, {
-    ...init,
-    headers: {
-      "Authorization": "Bearer " + KEY,
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
-  if (!res.ok) throw new Error((await res.json()).error);
-  return res.json();
-}
-
-// Create a mailbox, then poll for new email
-const mb = await api("/mailboxes", {
-  method: "POST",
-  body: JSON.stringify({ prefix: "bot", domain: "example.com" }),
-});
-
-const { emails } = await api(\`/mailboxes/\${mb.id}/emails?unread=true\`);
-console.log(\`\${emails.length} unread\`);`}</Code>
-      </section>
-
-      <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-3">Python example</h2>
-        <Code>{`import os, requests
-
-KEY = os.environ["MAILBOX_API_KEY"]
-BASE = "https://your-host/api/v1"
-H = {"Authorization": f"Bearer {KEY}"}
-
-mailboxes = requests.get(f"{BASE}/mailboxes", headers=H).json()
-for mb in mailboxes:
-    print(mb["emailAddress"])`}</Code>
       </section>
 
       <div className="border-t border-surface-200 pt-6 mt-10 text-sm text-surface-500">

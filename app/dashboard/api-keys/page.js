@@ -98,7 +98,7 @@ export default function ApiKeysPage() {
           <div>
             <h1 className="section-title">API keys</h1>
             <p className="section-subtitle">
-              Programmatic access to your mailboxes, emails, domains and profile.
+              Programmatic access to your mailboxes, emails and domains.
             </p>
           </div>
           <Link href="/docs/api" className="btn-secondary py-2 px-4 text-sm">
