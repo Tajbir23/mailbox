@@ -27,9 +27,26 @@ function LoginContent() {
   // Read callbackUrl from query params — used to resume OIDC flow after login
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
+  // Navigate to the post-login destination. API routes (e.g. the OIDC
+  // /api/oidc/authorize resume URL) and absolute URLs need a full browser
+  // navigation — Next.js client-side router.push does not handle route
+  // handlers reliably. Internal page paths use SPA navigation.
+  const goToCallback = (url) => {
+    if (/^https?:\/\//i.test(url) || url.startsWith("/api/")) {
+      window.location.href = url;
+    } else {
+      router.push(url);
+      router.refresh();
+    }
+  };
+
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace(callbackUrl);
+      if (/^https?:\/\//i.test(callbackUrl) || callbackUrl.startsWith("/api/")) {
+        window.location.href = callbackUrl;
+      } else {
+        router.replace(callbackUrl);
+      }
     }
   }, [status, router, callbackUrl]);
 
@@ -58,8 +75,7 @@ function LoginContent() {
       setError(result.error);
     } else {
       // Redirect to callbackUrl (OIDC authorize endpoint) or default dashboard
-      router.push(callbackUrl);
-      router.refresh();
+      goToCallback(callbackUrl);
     }
   };
 

@@ -84,10 +84,12 @@ function ConsentContent() {
 
       const data = await res.json();
 
-      if (data.redirect_url) {
-        window.location.href = data.redirect_url;
-      } else if (data.error) {
-        setError(data.error_description || data.error);
+      // The consent API returns { redirect: "<redirect_uri>?code=...&state=..." }
+      const redirectTo = data.redirect || data.redirect_url;
+      if (redirectTo) {
+        window.location.href = redirectTo;
+      } else {
+        setError(data.error_description || data.error || "Authorization failed. Please try again.");
         setSubmitting(false);
       }
     } catch (err) {
