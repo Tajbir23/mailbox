@@ -19,6 +19,22 @@ export default function SettingsPage() {
   const [pwMsg, setPwMsg] = useState({ type: "", text: "" });
   const [pwLoading, setPwLoading] = useState(false);
 
+  // Authorized apps state
+  const [authorizedApps, setAuthorizedApps] = useState([]);
+  const [appsLoading, setAppsLoading] = useState(true);
+  const [revokeConfirm, setRevokeConfirm] = useState(null);
+  const [revokeLoading, setRevokeLoading] = useState(false);
+
+  const fetchAuthorizedApps = () => {
+    fetch("/api/user/authorized-apps")
+      .then((r) => r.json())
+      .then((data) => {
+        setAuthorizedApps(data.apps || []);
+      })
+      .catch(() => {})
+      .finally(() => setAppsLoading(false));
+  };
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login");
@@ -34,6 +50,7 @@ export default function SettingsPage() {
           }
         })
         .catch(() => {});
+      fetchAuthorizedApps();
     }
   }, [status, router]);
 
@@ -116,6 +133,23 @@ export default function SettingsPage() {
       setPwMsg({ type: "error", text: "Network error" });
     } finally {
       setPwLoading(false);
+    }
+  };
+
+  const revokeApp = async (client_id) => {
+    setRevokeLoading(true);
+    try {
+      const res = await fetch(`/api/user/authorized-apps?client_id=${encodeURIComponent(client_id)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setAuthorizedApps((apps) => apps.filter((a) => a.client_id !== client_id));
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setRevokeLoading(false);
+      setRevokeConfirm(null);
     }
   };
 
@@ -286,6 +320,87 @@ export default function SettingsPage() {
           </button>
         </form>
       </div>
+
+      {/* Authorized Applications */}
+      <div className="card p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-surface-900 mb-1">Authorized applications</h2>
+        <p className="text-sm text-surface-500 mb-6">
+          External applications you have granted access to your account. Revoking access will sign you out of that application.
+        </p>
+
+        {appsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
+          </div>
+        ) : authorizedApps.length === 0 ? (
+          <div className="text-center py-8">
+            <svg className="w-12 h-12 mx-auto text-surface-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            <p className="text-sm text-surface-500">No applications have been authorized yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {authorizedApps.map((app) => (
+              <div
+                key={app.client_id}
+                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-surface-200 bg-surface-50"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-surface-900 truncate">{app.display_name}</p>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {app.granted_scopes.map((scope) => (
+                      <span
+                        key={scope}
+                        className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-brand-50 text-brand-700 border border-brand-100"
+                      >
+                        {scope}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-surface-400 mt-1.5">
+                    Authorized {new Date(app.granted_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setRevokeConfirm(app.client_id)}
+                  className="shrink-0 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  Revoke
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Revoke Confirmation Dialog */}
+      {revokeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-surface-900 mb-2">Revoke access?</h3>
+            <p className="text-sm text-surface-600 mb-6">
+              This will remove the application&apos;s access to your account and invalidate all its tokens. You can re-authorize it later if needed.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setRevokeConfirm(null)}
+                disabled={revokeLoading}
+                className="px-4 py-2 text-sm font-medium text-surface-700 bg-surface-100 rounded-lg hover:bg-surface-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => revokeApp(revokeConfirm)}
+                disabled={revokeLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                {revokeLoading ? "Revoking…" : "Revoke access"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,10 +10,12 @@
     "seed": "node scripts/seed-admin.js",
     "verify-domains": "node scripts/verify-domains.js",
     "setup": "sudo bash scripts/setup.sh",
-    "deploy": "sudo bash scripts/deploy.sh"
+    "deploy": "sudo bash scripts/deploy.sh",
+    "generate-keys": "node scripts/generate-rsa-keys.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.3",
     "mailparser": "^3.7.1",
     "mongoose": "^8.9.5",
     "next": "^14.2.21",

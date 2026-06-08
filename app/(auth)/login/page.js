@@ -1,23 +1,37 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+/**
+ * Inner login component that reads search params.
+ *
+ * OIDC Flow Preservation (Requirements 11.2, 11.3):
+ * When users arrive from the OIDC authorization endpoint without a session,
+ * the authorize endpoint redirects here with a `callbackUrl` query parameter
+ * pointing back to /api/oidc/authorize with all OIDC params preserved.
+ * After successful login, we redirect to that callbackUrl so the OIDC
+ * authorization flow resumes seamlessly.
+ */
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Read callbackUrl from query params — used to resume OIDC flow after login
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/dashboard");
+      router.replace(callbackUrl);
     }
-  }, [status, router]);
+  }, [status, router, callbackUrl]);
 
   if (status === "loading" || status === "authenticated") {
     return (
@@ -43,7 +57,8 @@ export default function LoginPage() {
     if (result?.error) {
       setError(result.error);
     } else {
-      router.push("/dashboard");
+      // Redirect to callbackUrl (OIDC authorize endpoint) or default dashboard
+      router.push(callbackUrl);
       router.refresh();
     }
   };
@@ -139,5 +154,19 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 animate-pulse" />
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }
