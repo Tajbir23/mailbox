@@ -11,9 +11,11 @@
     "verify-domains": "node scripts/verify-domains.js",
     "setup": "sudo bash scripts/setup.sh",
     "deploy": "sudo bash scripts/deploy.sh",
-    "generate-keys": "node scripts/generate-rsa-keys.js"
+    "generate-keys": "node scripts/generate-rsa-keys.js",
+    "generate-saml-cert": "node scripts/generate-saml-cert.js"
   },
   "dependencies": {
+    "@xmldom/xmldom": "^0.9.10",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.3",
     "mailparser": "^3.7.1",
@@ -24,7 +26,9 @@
     "react-dom": "^18.3.1",
     "smtp-server": "^3.13.6",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "xml-crypto": "^6.1.2",
+    "xmlbuilder2": "^4.0.3"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",
