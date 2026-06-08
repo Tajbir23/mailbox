@@ -414,87 +414,128 @@ export default function OAuthClientsPage() {
 
       {/* Register Form Modal */}
       {showRegisterForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-surface-900">Register New Client</h3>
-              <button onClick={() => setShowRegisterForm(false)} className="btn-ghost !p-2 !rounded-lg">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto p-0">
+            {/* Modal header */}
+            <div className="flex items-center gap-3 p-6 border-b border-surface-100">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-brand-md shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold text-surface-900">Register New Client</h3>
+                <p className="text-xs text-surface-500">Create SSO credentials for an application</p>
+              </div>
+              <button
+                onClick={() => setShowRegisterForm(false)}
+                className="btn-ghost !p-2 !rounded-lg shrink-0"
+              >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <form onSubmit={handleRegister} className="space-y-4">
+            <form onSubmit={handleRegister} className="p-6 space-y-5">
+              {/* Display Name */}
               <div>
-                <label className="text-sm font-medium text-surface-700">Display Name</label>
+                <label className="block text-sm font-semibold text-surface-800 mb-1.5">Display Name</label>
                 <input
                   type="text"
                   value={registerForm.display_name}
                   onChange={(e) => setRegisterForm((prev) => ({ ...prev, display_name: e.target.value }))}
-                  className="input mt-1"
-                  placeholder="My Application"
+                  className="input-field"
+                  placeholder="e.g. ChatGPT, Slack, My Web App"
                   required
                 />
+                <p className="text-xs text-surface-400 mt-1.5">Shown to users on the consent screen.</p>
               </div>
 
+              {/* Redirect URIs */}
               <div>
-                <label className="text-sm font-medium text-surface-700">Redirect URIs</label>
-                <p className="text-xs text-surface-400 mb-1">One URI per line</p>
+                <label className="block text-sm font-semibold text-surface-800 mb-1.5">Redirect URIs</label>
                 <textarea
                   value={registerForm.redirect_uris}
                   onChange={(e) => setRegisterForm((prev) => ({ ...prev, redirect_uris: e.target.value }))}
-                  className="input mt-1 min-h-[80px] font-mono text-sm"
+                  className="input-field min-h-[88px] font-mono text-sm leading-relaxed"
                   placeholder={"https://myapp.com/callback\nhttps://myapp.com/auth/callback"}
                   required
                 />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-surface-700">Client Type</label>
-                <div className="flex gap-4 mt-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="client_type"
-                      value="confidential"
-                      checked={registerForm.client_type === "confidential"}
-                      onChange={(e) => setRegisterForm((prev) => ({ ...prev, client_type: e.target.value }))}
-                      className="text-brand-500"
-                    />
-                    <span className="text-sm text-surface-700">Confidential</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="client_type"
-                      value="public"
-                      checked={registerForm.client_type === "public"}
-                      onChange={(e) => setRegisterForm((prev) => ({ ...prev, client_type: e.target.value }))}
-                      className="text-brand-500"
-                    />
-                    <span className="text-sm text-surface-700">Public</span>
-                  </label>
-                </div>
-                <p className="text-xs text-surface-400 mt-1">
-                  Confidential clients can securely store secrets (server-side apps). Public clients cannot (SPAs, mobile).
+                <p className="text-xs text-surface-400 mt-1.5">
+                  One URI per line. Get this from the app you are connecting — it must match exactly.
                 </p>
               </div>
 
+              {/* Client Type — selectable cards */}
               <div>
-                <label className="text-sm font-medium text-surface-700">Allowed Scopes</label>
-                <div className="flex flex-wrap gap-3 mt-2">
-                  {["openid", "profile", "email", "offline_access"].map((scope) => (
-                    <label key={scope} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={registerForm.allowed_scopes.includes(scope)}
-                        onChange={() => toggleScope(scope, setRegisterForm, registerForm.allowed_scopes)}
-                        className="text-brand-500 rounded"
-                      />
-                      <span className="text-sm text-surface-700">{scope}</span>
-                    </label>
-                  ))}
+                <label className="block text-sm font-semibold text-surface-800 mb-2">Client Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { value: "confidential", title: "Confidential", desc: "Server-side apps that can keep a secret" },
+                    { value: "public", title: "Public", desc: "SPAs / mobile apps (uses PKCE)" },
+                  ].map((opt) => {
+                    const selected = registerForm.client_type === opt.value;
+                    return (
+                      <button
+                        type="button"
+                        key={opt.value}
+                        onClick={() => setRegisterForm((prev) => ({ ...prev, client_type: opt.value }))}
+                        className={`text-left p-3 rounded-xl border-2 transition-all ${
+                          selected
+                            ? "border-brand-500 bg-brand-50/60 ring-2 ring-brand-100"
+                            : "border-surface-200 hover:border-surface-300 bg-white"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-semibold text-surface-800">{opt.title}</span>
+                          <span
+                            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                              selected ? "border-brand-500" : "border-surface-300"
+                            }`}
+                          >
+                            {selected && <span className="w-2 h-2 rounded-full bg-brand-500" />}
+                          </span>
+                        </div>
+                        <p className="text-xs text-surface-500 leading-snug">{opt.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Allowed Scopes — chips */}
+              <div>
+                <label className="block text-sm font-semibold text-surface-800 mb-2">Allowed Scopes</label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "openid", label: "openid", required: true },
+                    { id: "profile", label: "profile" },
+                    { id: "email", label: "email" },
+                    { id: "offline_access", label: "offline_access" },
+                  ].map((scope) => {
+                    const checked = registerForm.allowed_scopes.includes(scope.id);
+                    return (
+                      <button
+                        type="button"
+                        key={scope.id}
+                        onClick={() => !scope.required && toggleScope(scope.id, setRegisterForm, registerForm.allowed_scopes)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                          checked
+                            ? "bg-brand-500 text-white border-brand-500"
+                            : "bg-white text-surface-600 border-surface-200 hover:border-surface-300"
+                        } ${scope.required ? "cursor-default opacity-90" : "cursor-pointer"}`}
+                      >
+                        {checked && (
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {scope.label}
+                        {scope.required && <span className="opacity-70">(required)</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -521,65 +562,103 @@ export default function OAuthClientsPage() {
 
       {/* Edit Modal */}
       {editingClient && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-surface-900">Edit Client</h3>
-              <button onClick={() => setEditingClient(null)} className="btn-ghost !p-2 !rounded-lg">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto p-0">
+            {/* Modal header */}
+            <div className="flex items-center gap-3 p-6 border-b border-surface-100">
+              <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-surface-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold text-surface-900">Edit Client</h3>
+                <p className="text-xs text-surface-500">Update application configuration</p>
+              </div>
+              <button onClick={() => setEditingClient(null)} className="btn-ghost !p-2 !rounded-lg shrink-0">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="p-6 space-y-5">
+              {/* Display Name */}
               <div>
-                <label className="text-sm font-medium text-surface-700">Display Name</label>
+                <label className="block text-sm font-semibold text-surface-800 mb-1.5">Display Name</label>
                 <input
                   type="text"
                   value={editForm.display_name}
                   onChange={(e) => setEditForm((prev) => ({ ...prev, display_name: e.target.value }))}
-                  className="input mt-1"
+                  className="input-field"
                 />
               </div>
 
+              {/* Redirect URIs */}
               <div>
-                <label className="text-sm font-medium text-surface-700">Redirect URIs</label>
-                <p className="text-xs text-surface-400 mb-1">One URI per line</p>
+                <label className="block text-sm font-semibold text-surface-800 mb-1.5">Redirect URIs</label>
                 <textarea
                   value={editForm.redirect_uris}
                   onChange={(e) => setEditForm((prev) => ({ ...prev, redirect_uris: e.target.value }))}
-                  className="input mt-1 min-h-[80px] font-mono text-sm"
+                  className="input-field min-h-[88px] font-mono text-sm leading-relaxed"
                 />
+                <p className="text-xs text-surface-400 mt-1.5">One URI per line.</p>
               </div>
 
+              {/* Allowed Scopes — chips */}
               <div>
-                <label className="text-sm font-medium text-surface-700">Allowed Scopes</label>
-                <div className="flex flex-wrap gap-3 mt-2">
-                  {["openid", "profile", "email", "offline_access"].map((scope) => (
-                    <label key={scope} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editForm.allowed_scopes.includes(scope)}
-                        onChange={() => toggleScope(scope, setEditForm, editForm.allowed_scopes)}
-                        className="text-brand-500 rounded"
-                      />
-                      <span className="text-sm text-surface-700">{scope}</span>
-                    </label>
-                  ))}
+                <label className="block text-sm font-semibold text-surface-800 mb-2">Allowed Scopes</label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "openid", label: "openid", required: true },
+                    { id: "profile", label: "profile" },
+                    { id: "email", label: "email" },
+                    { id: "offline_access", label: "offline_access" },
+                  ].map((scope) => {
+                    const checked = editForm.allowed_scopes.includes(scope.id);
+                    return (
+                      <button
+                        type="button"
+                        key={scope.id}
+                        onClick={() => !scope.required && toggleScope(scope.id, setEditForm, editForm.allowed_scopes)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                          checked
+                            ? "bg-brand-500 text-white border-brand-500"
+                            : "bg-white text-surface-600 border-surface-200 hover:border-surface-300"
+                        } ${scope.required ? "cursor-default opacity-90" : "cursor-pointer"}`}
+                      >
+                        {checked && (
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {scope.label}
+                        {scope.required && <span className="opacity-70">(required)</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editForm.active}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, active: e.target.checked }))}
-                    className="text-brand-500 rounded"
+              {/* Active toggle */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-surface-50 border border-surface-100">
+                <div>
+                  <p className="text-sm font-semibold text-surface-800">Active</p>
+                  <p className="text-xs text-surface-500">Inactive clients cannot issue tokens.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditForm((prev) => ({ ...prev, active: !prev.active }))}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    editForm.active ? "bg-brand-500" : "bg-surface-300"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                      editForm.active ? "translate-x-5" : ""
+                    }`}
                   />
-                  <span className="text-sm font-medium text-surface-700">Active</span>
-                </label>
+                </button>
               </div>
 
               <div className="flex gap-3 pt-2">
