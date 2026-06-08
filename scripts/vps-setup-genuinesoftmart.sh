@@ -278,9 +278,6 @@ cat > "$CADDYFILE" << CADDYEOF
     # issue a cert for an arbitrary hostname (white-label custom domains).
     on_demand_tls {
         ask http://127.0.0.1:3000/api/public/verify-domain
-        # Rate limit cert requests to prevent abuse
-        interval 2m
-        burst 5
     }
 }
 
