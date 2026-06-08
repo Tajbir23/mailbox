@@ -25,6 +25,7 @@ import {
 } from "@/lib/oidc/authorize";
 import UserConsent from "@/lib/models/UserConsent";
 import { generateAuthorizationCode } from "@/lib/oidc/code";
+import { getIssuerFromHeaders } from "@/lib/oidc/keys";
 import dbConnect from "@/lib/mongodb";
 
 export const dynamic = "force-dynamic";
@@ -171,9 +172,11 @@ async function handleAuthorize(request) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user) {
-    // Not authenticated — redirect to login page with return URL
-    const currentUrl = new URL(request.url);
-    const authorizeUrl = new URL("/api/oidc/authorize", currentUrl.origin);
+    // Not authenticated — redirect to login page with return URL.
+    // Use the public origin from forwarded host headers (NOT request.url,
+    // which resolves to 127.0.0.1:3000 behind the Caddy reverse proxy).
+    const origin = getIssuerFromHeaders(request.headers);
+    const authorizeUrl = new URL("/api/oidc/authorize", origin);
     authorizeUrl.searchParams.set("client_id", client_id);
     authorizeUrl.searchParams.set("redirect_uri", redirect_uri);
     authorizeUrl.searchParams.set("response_type", response_type);
@@ -183,7 +186,7 @@ async function handleAuthorize(request) {
     if (code_challenge) authorizeUrl.searchParams.set("code_challenge", code_challenge);
     if (code_challenge_method) authorizeUrl.searchParams.set("code_challenge_method", code_challenge_method);
 
-    const loginUrl = new URL("/login", currentUrl.origin);
+    const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("callbackUrl", authorizeUrl.toString());
 
     return NextResponse.redirect(loginUrl.toString(), 302);
@@ -218,9 +221,11 @@ async function handleAuthorize(request) {
     return NextResponse.redirect(redirectUrl.toString(), 302);
   }
 
-  // Step 5: No consent or additional scopes needed — redirect to consent screen
-  const currentUrl = new URL(request.url);
-  const consentUrl = new URL("/oidc/consent", currentUrl.origin);
+  // Step 5: No consent or additional scopes needed — redirect to consent screen.
+  // Use the public origin from forwarded host headers (NOT request.url, which
+  // resolves to 127.0.0.1:3000 behind the Caddy reverse proxy).
+  const origin = getIssuerFromHeaders(request.headers);
+  const consentUrl = new URL("/oidc/consent", origin);
   consentUrl.searchParams.set("client_id", client_id);
   consentUrl.searchParams.set("redirect_uri", redirect_uri);
   consentUrl.searchParams.set("scope", scope);
