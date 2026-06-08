@@ -21,6 +21,13 @@ export function middleware(request) {
   const response = NextResponse.next();
   const { pathname } = request.nextUrl;
 
+  // The SAML SSO endpoint returns an auto-submitting HTML form that MUST POST
+  // the SAMLResponse to the Service Provider's external ACS URL. The default
+  // strict `form-action 'self'` blocks that cross-origin POST, so allow https
+  // form targets on this endpoint only (it only ever posts to registered SPs).
+  const isSamlSso = pathname.startsWith("/api/saml/sso");
+  const formAction = isSamlSso ? "form-action 'self' https:" : "form-action 'self'";
+
   // ── Security Headers ──
   // Strict CSP: allow self, inline styles (Tailwind), Google Fonts, wss for socket
   const csp = [
@@ -34,7 +41,7 @@ export function middleware(request) {
     "frame-src blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    formAction,
     "object-src 'none'",
   ].join("; ");
 
