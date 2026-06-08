@@ -11,6 +11,8 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // null = signup status still loading; true/false = resolved state.
+  const [signupEnabled, setSignupEnabled] = useState(null);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -18,7 +20,32 @@ export default function RegisterPage() {
     }
   }, [status, router]);
 
-  if (status === "loading" || status === "authenticated") {
+  // Fetch the current signup status on mount (Requirement 4.1).
+  useEffect(() => {
+    let active = true;
+
+    const loadSignupStatus = async () => {
+      try {
+        const res = await fetch("/api/signup-status");
+        const data = await res.json();
+        if (!active) return;
+        // Fail-open: only disable the form when we receive an explicit `false`.
+        setSignupEnabled(data?.signup_enabled === false ? false : true);
+      } catch {
+        // Network/parse error → fail open and show the form.
+        if (active) setSignupEnabled(true);
+      }
+    };
+
+    loadSignupStatus();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Spinner while the session or the signup status is still loading.
+  if (status === "loading" || status === "authenticated" || signupEnabled === null) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 animate-pulse" />
@@ -28,6 +55,8 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Prevent submission while signup is disabled (Requirement 4.3).
+    if (signupEnabled === false) return;
     setError("");
     setLoading(true);
 
@@ -72,7 +101,24 @@ export default function RegisterPage() {
           <p className="text-surface-500 text-sm mt-1">Start receiving emails in minutes</p>
         </div>
 
-        {/* Card */}
+        {signupEnabled === false ? (
+          /* Signup disabled state (Requirements 4.3, 4.4, 4.5) */
+          <div className="card p-8 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-surface-100 mb-4">
+              <svg className="w-6 h-6 text-surface-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-surface-900">Signup is currently disabled</h2>
+            <p className="text-surface-500 text-sm mt-2">
+              New account registration is turned off right now. Please check back later or sign in with an existing account.
+            </p>
+            <Link href="/login" className="btn-primary w-full py-3 text-sm mt-6 inline-flex items-center justify-center">
+              Go to login
+            </Link>
+          </div>
+        ) : (
+        /* Card */
         <div className="card p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -140,6 +186,7 @@ export default function RegisterPage() {
             </button>
           </form>
         </div>
+        )}
 
         <p className="mt-6 text-center text-sm text-surface-500">
           Already have an account?{" "}

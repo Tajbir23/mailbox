@@ -6,16 +6,16 @@
 
 ## Tasks
 
-- [ ] 1. Set up testing framework and shared setting-resolution helpers
-  - [ ] 1.1 Configure test framework and create resolution/validation helpers
+- [x] 1. Set up testing framework and shared setting-resolution helpers
+  - [x] 1.1 Configure test framework and create resolution/validation helpers
     - Jest + fast-check (`jest`, `@testing-library/react`, `@testing-library/jest-dom`, `fast-check`) devDependency হিসেবে যোগ করা এবং `package.json`-এ `"test": "jest"` স্ক্রিপ্ট যোগ করা
     - Next.js-সামঞ্জস্যপূর্ণ `jest.config.js` ও `jest.setup.js` তৈরি করা (jsdom environment, module aliases)
     - নতুন ফাইল `lib/settings/signupSetting.js`-এ একটি বিশুদ্ধ helper `resolveSignupEnabled(rawValue)` তৈরি করা যা boolean হলে সেই মান, অন্যথায় `true` ফেরত দেয় (default coercion)
     - নতুন ফাইল `lib/settings/validateSetting.js`-এ `isValidSettingValue(def, value)` helper তৈরি করা যা `def.type === "boolean"` হলে `typeof value === "boolean"` যাচাই করে
     - _Requirements: 1.3, 5.4_
 
-- [ ] 2. Implement Admin_Settings_API signup_enabled registry and reordered PATCH logic
-  - [ ] 2.1 Register `signup_enabled` and apply value-before-role validation order
+- [x] 2. Implement Admin_Settings_API signup_enabled registry and reordered PATCH logic
+  - [x] 2.1 Register `signup_enabled` and apply value-before-role validation order
     - `app/api/admin/settings/route.js`-এর `SETTINGS` রেজিস্ট্রিতে `signup_enabled: { default: true, type: "boolean" }` যোগ করা
     - GET হ্যান্ডলারে নিশ্চিত করা যে রেসপন্স map ডিফল্ট দিয়ে seed হয় ও stored value দিয়ে override হয়, `signup_enabled` অন্তর্ভুক্ত থাকে
     - PATCH হ্যান্ডলারের লজিক পুনর্বিন্যাস: (1) key পার্স ও known-key যাচাই → না হলে 400; (2) `isValidSettingValue` দিয়ে টাইপ ভ্যালিডেশন → ব্যর্থ হলে 400 (role চেকের আগে); (3) role !== admin → 403; (4) `findOneAndUpdate` upsert ও `200 { key, value }` ফেরত
@@ -36,8 +36,8 @@
     - getServerSession ও SiteSetting mock করা
     - _Requirements: 1.2, 1.6_
 
-- [ ] 3. Implement public Signup_Status_API
-  - [ ] 3.1 Create `/api/signup-status` GET route
+- [x] 3. Implement public Signup_Status_API
+  - [x] 3.1 Create `/api/signup-status` GET route
     - নতুন ফাইল `app/api/signup-status/route.js` (`force-dynamic`, কোনো auth নয়)
     - শুধুমাত্র `SiteSetting.findOne({ key: "signup_enabled" })` query করা এবং `resolveSignupEnabled` দিয়ে কার্যকর মান নির্ধারণ
     - রেসপন্স অবজেক্টে ঠিক একটি কী `{ signup_enabled }` তৈরি করা; অপ্রত্যাশিত অতিরিক্ত ফিল্ড থাকলে error লগ করে শুধু `signup_enabled` ফেরত দেওয়া; DB ত্রুটিতে 500
@@ -52,11 +52,11 @@
     - empty store → `true` (5.4); forced-extra-field path → লগিং ও শুধু `signup_enabled` ফেরত (5.3)
     - _Requirements: 5.3, 5.4_
 
-- [ ] 4. Checkpoint - Ensure all tests pass
+- [x] 4. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Enforce signup state in Registration_API
-  - [ ] 5.1 Add signup gate before field validation
+- [x] 5. Enforce signup state in Registration_API
+  - [x] 5.1 Add signup gate before field validation
     - `app/api/auth/register/route.js`-এ rate-limit চেকের পর কিন্তু ইনপুট ফিল্ড ভ্যালিডেশনের আগে `SiteSetting.findOne({ key: "signup_enabled" })` পড়া ও `resolveSignupEnabled` প্রয়োগ করা
     - disabled হলে `403 { error: "Signup is currently disabled by the administrator." }` ফেরত দেওয়া এবং কোনো ইউজার তৈরি না করা
     - enabled হলে বিদ্যমান প্রবাহ অপরিবর্তিত রেখে valid ইনপুটে 201
@@ -71,8 +71,8 @@
     - enabled + valid → 201 (3.1); disabled error message বিষয়বস্তু যাচাই (3.3)
     - _Requirements: 3.1, 3.3_
 
-- [ ] 6. Add signup toggle control to Admin_Settings_Page
-  - [ ] 6.1 Render and wire the signup toggle
+- [x] 6. Add signup toggle control to Admin_Settings_Page
+  - [x] 6.1 Render and wire the signup toggle
     - `app/admin/settings/page.js`-এর প্রাথমিক state-এ `signup_enabled: true` যোগ করা যাতে fetch-পরবর্তী merge বর্তমান মান দেখায়
     - একটি নতুন কার্ড + enable/disable toggle কন্ট্রোল যোগ করা; enable → `updateSetting("signup_enabled", true)`, disable → `updateSetting("signup_enabled", false)`
     - বিদ্যমান optimistic-update প্যাটার্ন পুনঃব্যবহার: success → "Saved" indicator; failure → error বার্তা + পূর্বের state rollback
@@ -83,8 +83,8 @@
     - fetch mock করা
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 7. Reflect signup state in Registration_Page
-  - [ ] 7.1 Fetch status and conditionally render form
+- [x] 7. Reflect signup state in Registration_Page
+  - [x] 7.1 Fetch status and conditionally render form
     - `app/(auth)/register/page.js`-এ মাউন্টে `GET /api/signup-status` কল করা; লোডিং অবস্থায় spinner
     - `signup_enabled === true` → বিদ্যমান ফর্ম দেখানো ও submission অনুমোদন
     - `signup_enabled === false` → ফর্ম লুকানো, "signup currently disabled" বার্তা ও `/login` লিঙ্ক দেখানো, submission প্রতিরোধ
@@ -102,7 +102,7 @@
     - SiteSetting persistence: toggle off → register 403 → toggle on → register 201
     - _Requirements: 1.6, 3.1, 3.2_
 
-- [ ] 9. Final checkpoint - Ensure all tests pass
+- [x] 9. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

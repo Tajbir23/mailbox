@@ -37,7 +37,10 @@ export default function AdminSettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [settings, setSettings] = useState({ docs_visibility: "public" });
+  const [settings, setSettings] = useState({
+    docs_visibility: "public",
+    signup_enabled: true,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -117,6 +120,7 @@ export default function AdminSettingsPage() {
   }
 
   const docsVisibility = settings.docs_visibility;
+  const signupEnabled = settings.signup_enabled !== false;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -255,6 +259,85 @@ export default function AdminSettingsPage() {
               Open docs page
             </Link>
           </div>
+        </div>
+      </div>
+
+      {/* Signup Toggle Card */}
+      <div className="card p-6">
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center ring-1 ring-brand-100 shrink-0">
+              <svg className="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-surface-900">User Signup</h2>
+              <p className="text-sm text-surface-500">Control whether new users can register an account</p>
+            </div>
+          </div>
+
+          {/* Saved indicator */}
+          {saved && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200 animate-fade-in">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+              Saved
+            </div>
+          )}
+          {saving && !saved && (
+            <span className="text-xs text-surface-400 font-medium">Saving…</span>
+          )}
+        </div>
+
+        {/* Enable / Disable option cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => signupEnabled === false && updateSetting("signup_enabled", true)}
+            disabled={saving}
+            className={`text-left p-4 rounded-xl border-2 transition-all disabled:opacity-70 ${
+              signupEnabled
+                ? "border-brand-500 bg-brand-50/60 ring-2 ring-brand-100"
+                : "border-surface-200 hover:border-surface-300 bg-white"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-semibold text-surface-800">Enabled</span>
+              <span
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  signupEnabled ? "border-brand-500" : "border-surface-300"
+                }`}
+              >
+                {signupEnabled && <span className="w-2 h-2 rounded-full bg-brand-500" />}
+              </span>
+            </div>
+            <p className="text-xs text-surface-500 leading-snug">New users can register an account</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => signupEnabled !== false && updateSetting("signup_enabled", false)}
+            disabled={saving}
+            className={`text-left p-4 rounded-xl border-2 transition-all disabled:opacity-70 ${
+              !signupEnabled
+                ? "border-brand-500 bg-brand-50/60 ring-2 ring-brand-100"
+                : "border-surface-200 hover:border-surface-300 bg-white"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-semibold text-surface-800">Disabled</span>
+              <span
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  !signupEnabled ? "border-brand-500" : "border-surface-300"
+                }`}
+              >
+                {!signupEnabled && <span className="w-2 h-2 rounded-full bg-brand-500" />}
+              </span>
+            </div>
+            <p className="text-xs text-surface-500 leading-snug">New registrations are blocked; users can only log in</p>
+          </button>
         </div>
       </div>
     </div>

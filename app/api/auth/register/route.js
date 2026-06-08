@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/mongodb";
 import User from "@/lib/models/User";
+import SiteSetting from "@/lib/models/SiteSetting";
 import { rateLimit } from "@/lib/rate-limit";
 import { sanitizeString, sanitizeEmail } from "@/lib/sanitize";
+import { resolveSignupEnabled } from "@/lib/settings/signupSetting";
 
 // Rate limit: 5 registrations per IP per 15 minutes
 const limiter = rateLimit({ interval: 15 * 60 * 1000, uniqueTokenPerInterval: 500 });
@@ -25,6 +27,17 @@ export async function POST(request) {
     }
 
     await dbConnect();
+
+    // Signup gate: evaluate signup_enabled before validating input fields
+    const signupSetting = await SiteSetting.findOne({ key: "signup_enabled" }).lean();
+    const signupEnabled = resolveSignupEnabled(signupSetting?.value);
+    if (!signupEnabled) {
+      return NextResponse.json(
+        { error: "Signup is currently disabled by the administrator." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
     const name = sanitizeString(body.name, 100);

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import SiteSetting from "@/lib/models/SiteSetting";
+import { isValidSettingValue } from "@/lib/settings/validateSetting";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,10 @@ const SETTINGS = {
   docs_visibility: {
     default: "public",
     allowed: ["public", "authenticated", "admin", "custom", "disabled"],
+  },
+  signup_enabled: {
+    default: true,
+    type: "boolean",
   },
 };
 
@@ -45,15 +50,10 @@ export async function GET() {
 // PATCH /api/admin/settings – update a single setting { key, value }
 export async function PATCH(request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
-
-    await dbConnect();
     const body = await request.json();
     const { key, value } = body || {};
 
+    // 1. Parse and validate the key is a known setting → else 400
     if (!key || typeof key !== "string") {
       return NextResponse.json({ error: "key is required" }, { status: 400 });
     }
@@ -63,12 +63,22 @@ export async function PATCH(request) {
       return NextResponse.json({ error: "Unknown setting key" }, { status: 400 });
     }
 
-    if (def.allowed && !def.allowed.includes(value)) {
+    // 2. Validate the value data type BEFORE checking the requester role → else 400
+    if (!isValidSettingValue(def, value)) {
       return NextResponse.json(
         { error: `Invalid value for ${key}` },
         { status: 400 }
       );
     }
+
+    // 3. Authorize: only admins may persist a setting change → else 403
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // 4. Persist the validated value and return the stored key/value
+    await dbConnect();
 
     const updated = await SiteSetting.findOneAndUpdate(
       { key },
