@@ -1,15 +1,18 @@
 export const dynamic = "force-dynamic";
 
-import { getIssuerUrl } from "@/lib/oidc/keys";
+import { getIssuerFromHeaders } from "@/lib/oidc/keys";
 
 /**
  * GET /.well-known/openid-configuration
  *
  * Returns the OIDC Discovery document containing provider metadata,
  * endpoint URLs, and supported capabilities.
+ *
+ * The issuer (and all endpoint URLs) are derived from the request host so
+ * that white-label custom domains each act as their own OIDC issuer.
  */
-export async function GET() {
-  const issuer = getIssuerUrl();
+export async function GET(request) {
+  const issuer = getIssuerFromHeaders(request.headers);
 
   const configuration = {
     issuer,

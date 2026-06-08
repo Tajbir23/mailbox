@@ -27,6 +27,7 @@ import {
   hashToken,
 } from "@/lib/oidc/tokens";
 import { checkRateLimit } from "@/lib/oidc/rate-limit";
+import { getIssuerFromHeaders } from "@/lib/oidc/keys";
 import OAuthClient from "@/lib/models/OAuthClient";
 import OIDCToken from "@/lib/models/OIDCToken";
 import User from "@/lib/models/User";
@@ -200,6 +201,7 @@ async function handleAuthorizationCodeGrant(request, body) {
     scopes: codeRecord.scopes,
     nonce: codeRecord.nonce || null,
     user: { email: user.email, name: user.name },
+    issuer: getIssuerFromHeaders(request.headers),
   });
 
   // Step 7: Generate access token and store its hash
@@ -380,6 +382,7 @@ async function handleRefreshTokenGrant(request, body) {
     scopes: tokenRecord.scopes,
     nonce: null,
     user: { email: user.email, name: user.name },
+    issuer: getIssuerFromHeaders(request.headers),
   });
 
   // Step 14: Return response
