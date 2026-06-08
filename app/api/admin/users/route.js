@@ -113,6 +113,15 @@ export async function PATCH(request) {
       });
     }
 
+    if (action === "toggleDocsAccess") {
+      user.canViewDocs = !user.canViewDocs;
+      await user.save();
+      return NextResponse.json({
+        message: `Documentation access ${user.canViewDocs ? "granted" : "revoked"}`,
+        canViewDocs: user.canViewDocs,
+      });
+    }
+
     if (action === "resetPassword") {
       const { newPassword } = body;
       if (!newPassword || newPassword.length < 6) {

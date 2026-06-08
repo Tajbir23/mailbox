@@ -2,12 +2,29 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { data: session } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [docsAllowed, setDocsAllowed] = useState(false);
+
+  // Determine whether the current visitor may see the SSO docs link.
+  // /api/docs-access returns { allowed } based on the visibility setting and,
+  // for "custom" mode, the user's per-account canViewDocs permission.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/docs-access")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setDocsAllowed(Boolean(d?.allowed));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   return (
     <nav className="sticky top-0 z-50 glass-strong border-b border-surface-100/50 shadow-sm">
@@ -32,6 +49,14 @@ export default function Navbar() {
                 >
                   Dashboard
                 </Link>
+                {docsAllowed && (
+                  <Link
+                    href="/docs/sso"
+                    className="px-3 py-1.5 text-sm font-medium text-surface-600 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all duration-200"
+                  >
+                    Docs
+                  </Link>
+                )}
                 {(session.user.role === "admin" || session.user.canAccessCheckout) && (
                   <Link
                     href="/chatgpt-checkout"
@@ -151,6 +176,15 @@ export default function Navbar() {
                 >
                   Dashboard
                 </Link>
+                {docsAllowed && (
+                  <Link
+                    href="/docs/sso"
+                    onClick={() => setMobileOpen(false)}
+                    className="block px-3 py-2 text-sm font-medium text-surface-700 hover:bg-brand-50 hover:text-brand-600 rounded-lg transition"
+                  >
+                    Docs
+                  </Link>
+                )}
                 {(session.user.role === "admin" || session.user.canAccessCheckout) && (
                   <Link
                     href="/chatgpt-checkout"

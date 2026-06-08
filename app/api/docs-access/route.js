@@ -5,8 +5,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import SiteSetting from "@/lib/models/SiteSetting";
+import User from "@/lib/models/User";
 
-const ALLOWED_VISIBILITY = ["public", "authenticated", "admin", "disabled"];
+const ALLOWED_VISIBILITY = ["public", "authenticated", "admin", "custom", "disabled"];
 
 // GET /api/docs-access – PUBLIC endpoint reporting docs visibility + access
 export async function GET() {
@@ -31,6 +32,17 @@ export async function GET() {
         break;
       case "admin":
         allowed = session?.user?.role === "admin";
+        break;
+      case "custom":
+        // Admins always allowed; otherwise the user needs the canViewDocs flag.
+        if (session?.user?.role === "admin") {
+          allowed = true;
+        } else if (session?.user?.id) {
+          const u = await User.findById(session.user.id).select("canViewDocs").lean();
+          allowed = Boolean(u?.canViewDocs);
+        } else {
+          allowed = false;
+        }
         break;
       case "disabled":
         allowed = false;

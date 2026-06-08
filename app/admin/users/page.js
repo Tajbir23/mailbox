@@ -124,6 +124,28 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleToggleDocsAccess = async (userId, currentAccess) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: userId, action: "toggleDocsAccess" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showMessage(`Docs access ${currentAccess ? "revoked" : "granted"}`);
+        fetchUsers();
+      } else {
+        showMessage(data.error || "Failed", "error");
+      }
+    } catch {
+      showMessage("Error toggling docs access", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleResetPassword = async () => {
     if (!newPassword || newPassword.length < 6) {
       showMessage("Password must be at least 6 characters", "error");
@@ -292,6 +314,11 @@ export default function AdminUsersPage() {
                                 Checkout Access
                               </span>
                             )}
+                            {u.canViewDocs && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                                Docs Access
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -323,6 +350,18 @@ export default function AdminUsersPage() {
                                   title={u.canAccessCheckout ? "Revoke Checkout Access" : "Grant Checkout Access"}
                                 >
                                   {u.canAccessCheckout ? "Revoke Checkout" : "Grant Checkout"}
+                                </button>
+                                <button
+                                  onClick={() => handleToggleDocsAccess(u._id, u.canViewDocs)}
+                                  disabled={actionLoading}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
+                                    u.canViewDocs 
+                                      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" 
+                                      : "bg-surface-100 text-surface-700 hover:bg-surface-200"
+                                  }`}
+                                  title={u.canViewDocs ? "Revoke Docs Access" : "Grant Docs Access"}
+                                >
+                                  {u.canViewDocs ? "Revoke Docs" : "Grant Docs"}
                                 </button>
                                 <button
                                   onClick={() => setShowResetModal(u)}

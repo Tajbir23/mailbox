@@ -22,6 +22,11 @@ const VISIBILITY_OPTIONS = [
     desc: "Only administrators",
   },
   {
+    value: "custom",
+    title: "Selected users",
+    desc: "Only specific users you grant access to (manage per user in Users)",
+  },
+  {
     value: "disabled",
     title: "Disabled",
     desc: "Nobody can view",
@@ -219,6 +224,20 @@ export default function AdminSettingsPage() {
 
         {/* Docs link */}
         <div className="mt-5 pt-5 border-t border-surface-100">
+          {docsVisibility === "custom" && (
+            <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2">
+              <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-amber-800">
+                Grant individual users access from{" "}
+                <Link href="/admin/users" className="underline font-semibold">
+                  Users
+                </Link>{" "}
+                — toggle &ldquo;Docs access&rdquo; on each user. Admins always have access.
+              </p>
+            </div>
+          )}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl bg-surface-50 border border-surface-100">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-surface-800">SSO Documentation</p>

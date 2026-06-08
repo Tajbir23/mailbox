@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const SETTINGS = {
   docs_visibility: {
     default: "public",
-    allowed: ["public", "authenticated", "admin", "disabled"],
+    allowed: ["public", "authenticated", "admin", "custom", "disabled"],
   },
 };
 
