@@ -27,18 +27,14 @@ export async function GET(req) {
   try {
     await dbConnect();
 
-    // Auto-SSL eligibility: a domain gets a certificate as soon as it is
-    // registered, active, and DNS-verified (MX/TXT) by its owner — no separate
-    // admin hosting approval required. Admin-approved hosting domains also
-    // qualify. Requiring DNS verification prevents Let's Encrypt rate-limit
-    // abuse from arbitrary/unverified hostnames.
+    // Auto-SSL eligibility: only domains explicitly approved for hosting by an
+    // admin (websiteStatus: "approved") and active receive a certificate.
+    // Requiring admin approval prevents Let's Encrypt rate-limit abuse from
+    // arbitrary hostnames pointed at the server.
     const existingDomain = await Domain.findOne({
       name: { $in: candidates },
       isActive: true,
-      $or: [
-        { verificationStatus: "verified" },
-        { websiteStatus: "approved" },
-      ],
+      websiteStatus: "approved",
     });
 
     if (existingDomain) {
