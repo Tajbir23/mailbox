@@ -25,19 +25,21 @@ Self-hosted, receive-only email SaaS platform built with **Next.js 14**, a custo
    - [10. Caddyfile (HTTPS + Custom Domains)](#10-caddyfile-https--custom-domains)
 8. [DNS Configuration](#dns-configuration)
 9. [White-Label Custom Domains (On-Demand TLS)](#white-label-custom-domains-on-demand-tls)
-10. [GitHub Actions CI/CD](#github-actions-cicd)
-11. [Admin Panel](#admin-panel)
-12. [SMTP Server Details](#smtp-server-details)
-13. [Socket.io Real-time](#socketio-real-time)
-14. [Security](#security)
-15. [Useful PM2 & Caddy Commands](#useful-pm2--caddy-commands)
-16. [Troubleshooting](#troubleshooting)
-17. [License](#license)
+10. [OIDC Identity Provider (Sign in with Mailbox)](#oidc-identity-provider-sign-in-with-mailbox)
+11. [GitHub Actions CI/CD](#github-actions-cicd)
+12. [Admin Panel](#admin-panel)
+13. [SMTP Server Details](#smtp-server-details)
+14. [Socket.io Real-time](#socketio-real-time)
+15. [Security](#security)
+16. [Useful PM2 & Caddy Commands](#useful-pm2--caddy-commands)
+17. [Troubleshooting](#troubleshooting)
+18. [License](#license)
 
 ---
 
 ## Features
 
+- **OIDC Identity Provider (Sign in with Mailbox)** — The platform acts as a standards-compliant OpenID Connect provider. External apps (ChatGPT, Slack, Notion, or any OIDC client) can use "Sign in with Mailbox" for SSO. Supports authorization code flow, PKCE, refresh-token rotation, consent screens, and admin-managed OAuth clients.
 - **White-Label Custom Domains** — Users can point their own domain completely to the service without redirect issues. Caddy auto-provisions Let's Encrypt certs per domain via On-Demand TLS.
 - **Custom Domains** — Add your own domains with MX + TXT DNS verification
 - **Real-Time Inbox** — Emails arrive instantly via WebSocket (Socket.io)
@@ -100,16 +102,28 @@ mailbox-saas/
 │   ├── mongodb.js           # Mongoose connection singleton
 │   ├── rate-limit.js        # API rate limiting
 │   ├── sanitize.js          # Input sanitization
+│   ├── oidc/                # OIDC Identity Provider core
+│   │   ├── keys.js          # RSA key loading + JWKS export
+│   │   ├── authorize.js     # Authorization request validation
+│   │   ├── code.js          # Authorization code generation/use
+│   │   ├── client-auth.js   # OAuth client authentication
+│   │   ├── tokens.js        # ID/access/refresh token issuance (RS256)
+│   │   └── rate-limit.js    # Token endpoint rate limiter
 │   └── models/
 │       ├── User.js           # User schema (name, email, password, role)
 │       ├── Mailbox.js        # Mailbox schema (owner, shared, expiry)
 │       ├── IncomingEmail.js  # Email schema (from, to, subject, body, attachments)
 │       ├── Domain.js         # Domain schema (DNS verification, websiteStatus, isSystemDomain)
-│       └── Notification.js   # In-app notifications schema
+│       ├── Notification.js   # In-app notifications schema
+│       ├── OAuthClient.js    # Registered OIDC client apps
+│       ├── AuthorizationCode.js  # Short-lived auth codes (TTL)
+│       ├── OIDCToken.js      # Hashed access/refresh tokens
+│       └── UserConsent.js    # Per-user, per-client consent records
 ├── smtp-server/
 │   └── smtp.js              # Standalone SMTP + Socket.io server
 ├── scripts/
 │   ├── seed-admin.js        # First admin user seeder
+│   ├── generate-rsa-keys.js # Generate OIDC RSA signing keys
 │   ├── setup.sh             # One-command full server setup
 │   └── deploy.sh            # Quick redeploy (pull, build, restart)
 ├── ecosystem.config.js      # PM2 process configuration
@@ -140,13 +154,17 @@ npm install
 cp .env.local.example .env.local
 # Edit .env.local with your values (see Environment Variables section)
 
-# 4. Seed admin user
+# 4. Generate OIDC signing keys (for Sign in with Mailbox)
+npm run generate-keys
+# Copy the printed OIDC_RSA_PRIVATE_KEY / OIDC_RSA_PUBLIC_KEY into .env.local
+
+# 5. Seed admin user
 npm run seed
 
-# 5. Start development server
+# 6. Start development server
 npm run dev            # Next.js on http://localhost:3000
 
-# 6. Start SMTP server (separate terminal, requires root/port 25 access)
+# 7. Start SMTP server (separate terminal, requires root/port 25 access)
 sudo npm run smtp      # SMTP on port 25, Socket.io on port 4000
 ```
 
@@ -177,9 +195,20 @@ SOCKET_PORT=4000
 # Public Socket.io URL (browser connects here — same domain, proxied by Caddy)
 NEXT_PUBLIC_SOCKET_URL=https://yourdomain.com
 # NEXT_PUBLIC_SOCKET_URL=http://localhost:4000           # Local dev
+
+# ─── OIDC Identity Provider (Sign in with Mailbox) ───
+# Base64-encoded RSA key pair (PEM) used to sign ID tokens (RS256).
+# Generate with: npm run generate-keys   (then paste the output values here)
+OIDC_RSA_PRIVATE_KEY=base64-encoded-pem-private-key
+OIDC_RSA_PUBLIC_KEY=base64-encoded-pem-public-key
+
+# Canonical issuer URL — must stay constant across all custom domains.
+OIDC_ISSUER_URL=https://yourdomain.com
+# OIDC_ISSUER_URL=http://localhost:3000                  # Local dev
 ```
 
 > **Note:** `.env.local` and `.env.production` are gitignored. Never commit real credentials.
+> The VPS setup script (`scripts/vps-setup-genuinesoftmart.sh`) auto-generates the OIDC keys on first run and reuses them on subsequent runs.
 
 ---
 
@@ -568,6 +597,59 @@ Caddy will refuse to issue a cert if the `ask` endpoint says no — so make sure
 
 ---
 
+## OIDC Identity Provider (Sign in with Mailbox)
+
+The platform is a full **OpenID Connect (OIDC) Identity Provider**. Any standards-compliant relying party — ChatGPT Teams/Enterprise custom SSO, Slack, Notion, or your own apps — can offer **"Sign in with Mailbox"** so users authenticate with their Mailbox credentials.
+
+### Endpoints
+
+| Endpoint | Path | Purpose |
+|---|---|---|
+| Discovery | `/.well-known/openid-configuration` | Provider metadata (auto-config for clients) |
+| JWKS | `/.well-known/jwks.json` | Public RSA keys for ID-token verification |
+| Authorization | `/api/oidc/authorize` | Starts login + consent flow |
+| Token | `/api/oidc/token` | Exchanges code for tokens; refresh-token grant |
+| UserInfo | `/api/oidc/userinfo` | Returns claims for an access token |
+| Revocation | `/api/oidc/revoke` | Invalidates tokens |
+
+### Supported capabilities
+
+- **Authorization Code flow** with **PKCE** (S256) — required for public clients
+- **ID tokens** signed with **RS256**; opaque access/refresh tokens stored hashed
+- **Scopes:** `openid`, `profile`, `email`, `offline_access`
+- **Refresh-token rotation** with reuse detection (revokes all tokens on reuse)
+- **Consent screen** with per-user, per-client consent records and revocation
+- **Rate limiting** — 20 token requests/min per client
+- Works across white-label custom domains (issuer stays constant via `OIDC_ISSUER_URL`)
+
+### Generate signing keys
+
+```bash
+npm run generate-keys
+# Paste OIDC_RSA_PRIVATE_KEY, OIDC_RSA_PUBLIC_KEY, OIDC_ISSUER_URL into .env.local
+```
+
+> On a VPS, `scripts/vps-setup-genuinesoftmart.sh` generates and installs these keys automatically (and preserves them on re-run).
+
+### Register a client application
+
+1. Sign in as an admin and open **`/admin/oauth-clients`**.
+2. Click **Register New Client**, set a display name, redirect URI(s), allowed scopes, and client type (`confidential` for server apps, `public` for SPAs/mobile).
+3. Copy the generated **Client ID** and **Client Secret** (the secret is shown only once).
+
+### Configure the relying party
+
+Point the external service at the discovery URL and provide the credentials:
+
+- **Issuer / Discovery URL:** `https://yourdomain.com/.well-known/openid-configuration`
+- **Client ID / Client Secret:** from the admin panel
+- **Redirect URI:** the callback URL registered for that client
+- **Scopes:** `openid profile email`
+
+Users can review and revoke connected apps under **Dashboard → Settings → Authorized applications**. Admins can revoke any authorization from `/admin/oauth-clients`.
+
+---
+
 ## GitHub Actions CI/CD
 
 Pushes to `main` branch auto-deploy via `.github/workflows/deploy.yml`.
@@ -616,6 +698,7 @@ Access admin features at `/admin` (requires admin role).
 | `/admin` | Dashboard — Overview stats, email activity, system info, memory, top mailboxes, recent users & emails |
 | `/admin/users` | User Management — Search, paginate, promote/demote role, reset password, delete user (cascade deletes all their data) |
 | `/admin/domains` | Domain Management — Add/remove system domains |
+| `/admin/oauth-clients` | OAuth Clients — Register/edit/delete OIDC SSO clients, regenerate secrets, view & revoke active user authorizations |
 | `/admin/monitor` | Server Monitor — Real-time CPU load (gauge charts), memory bars, Node.js process memory, DB storage stats, email volume & user growth charts. Auto-refreshes every 15 seconds |
 
 ### Admin API Endpoints
@@ -627,6 +710,10 @@ Access admin features at `/admin` (requires admin role).
 | `/api/admin/users` | PATCH | Toggle role or reset password |
 | `/api/admin/users` | DELETE | Delete user + cascade all data |
 | `/api/admin/domains` | GET/POST/DELETE | Manage system domains |
+| `/api/admin/oauth-clients` | GET/POST | List / register OIDC OAuth clients |
+| `/api/admin/oauth-clients/[id]` | GET/PATCH/DELETE | Client detail / update / deactivate |
+| `/api/admin/oauth-clients/[id]/regenerate-secret` | POST | Rotate a client secret |
+| `/api/admin/oauth-clients/authorizations` | GET/DELETE | List / revoke user authorizations |
 
 ---
 
