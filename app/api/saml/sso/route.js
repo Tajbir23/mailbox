@@ -255,7 +255,7 @@ async function handleSso(request, binding) {
     return errorPage(500, "Unable to determine the authenticated user's email address.");
   }
 
-  const user = { email, name };
+  const user = { id: session.user.id, email, name };
   const entityId = getEntityIdFromHeaders(request.headers);
 
   const { xml, assertionId } = buildResponse({
