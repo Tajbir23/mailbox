@@ -25,6 +25,10 @@ APP_DIR="/var/www/mailbox-saas"
 cd "$APP_DIR"
 
 info "Pulling latest code..."
+# package-lock.json is regenerated locally by `npm install` on each deploy,
+# which would otherwise block `git pull`. Discard the auto-generated change
+# before pulling so the repo version always wins.
+git checkout -- package-lock.json 2>/dev/null || true
 git pull origin main
 log "Code updated"
 

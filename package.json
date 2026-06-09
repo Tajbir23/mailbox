@@ -13,6 +13,7 @@
     "deploy": "sudo bash scripts/deploy.sh",
     "generate-keys": "node scripts/generate-rsa-keys.js",
     "generate-saml-cert": "node scripts/generate-saml-cert.js",
+    "clean-sso": "node scripts/clean-sso-data.js",
     "test": "jest"
   },
   "dependencies": {
