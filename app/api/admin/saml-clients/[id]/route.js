@@ -51,6 +51,7 @@ export async function PATCH(request, { params }) {
     // Only allow updating specific fields
     const allowedUpdates = [
       "display_name",
+      "sp_entity_id",
       "acs_urls",
       "default_acs_url",
       "nameid_format",
@@ -65,6 +66,17 @@ export async function PATCH(request, { params }) {
       }
     }
 
+    // Guard against blanking out a required unique field.
+    if (
+      updates.sp_entity_id !== undefined &&
+      (!updates.sp_entity_id || !String(updates.sp_entity_id).trim())
+    ) {
+      return NextResponse.json(
+        { error: "sp_entity_id cannot be empty" },
+        { status: 400 }
+      );
+    }
+
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
         { error: "No valid fields to update" },
@@ -74,6 +86,7 @@ export async function PATCH(request, { params }) {
 
     const updatedClient = await SAMLClient.findByIdAndUpdate(id, updates, {
       new: true,
+      runValidators: true,
     }).lean();
 
     return NextResponse.json({
@@ -81,6 +94,13 @@ export async function PATCH(request, { params }) {
       client: updatedClient,
     });
   } catch (err) {
+    // Handle duplicate sp_entity_id (Mongo duplicate key error)
+    if (err && err.code === 11000) {
+      return NextResponse.json(
+        { error: "A SAML client with this sp_entity_id already exists" },
+        { status: 409 }
+      );
+    }
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
