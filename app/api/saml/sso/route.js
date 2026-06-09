@@ -138,15 +138,21 @@ function autoPostForm(acsUrl, samlResponseB64, relayState) {
 /**
  * Map an ACS resolution failure reason to an HTTP status and message.
  * @param {string} reason
+ * @param {object} [details] - Optional context (e.g. the received SP Entity ID)
  * @returns {{ status: number, message: string }}
  */
-function acsFailureResponse(reason) {
+function acsFailureResponse(reason, details = {}) {
   switch (reason) {
-    case "unknown_sp":
+    case "unknown_sp": {
+      const received = details.issuer
+        ? ` The Entity ID received from the Service Provider was: "${details.issuer}". Register this exact value as an active SAML Service Provider in the admin panel.`
+        : "";
       return {
         status: 403,
-        message: "The requesting Service Provider is not registered or is inactive.",
+        message:
+          "The requesting Service Provider is not registered or is inactive." + received,
       };
+    }
     case "acs_not_allowed":
       return {
         status: 400,
@@ -213,7 +219,9 @@ async function handleSso(request, binding) {
 
   const resolved = resolveClientAndAcs(client, parsed.acsUrl);
   if (!resolved.ok) {
-    const { status, message } = acsFailureResponse(resolved.reason);
+    const { status, message } = acsFailureResponse(resolved.reason, {
+      issuer: parsed.issuer,
+    });
     return errorPage(status, message);
   }
 
