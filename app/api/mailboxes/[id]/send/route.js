@@ -88,8 +88,11 @@ export async function POST(request, { params }) {
     }
 
     // --- 4. Sending domain verified (Req 2.4) ---
+    // Admin-added system domains are trusted/owned by the platform, so they are
+    // allowed to send without a self-ownership TXT check. User-added domains
+    // must be DNS-verified first.
     const domain = await Domain.findById(mailbox.domainId).lean();
-    if (!domain || domain.verificationStatus !== "verified") {
+    if (!domain || (domain.verificationStatus !== "verified" && !domain.isSystemDomain)) {
       return NextResponse.json(
         { error: "Sending domain is not verified" },
         { status: 403 }

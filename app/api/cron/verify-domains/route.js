@@ -48,6 +48,8 @@ async function handler(request) {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const domains = await Domain.find({
       isActive: true,
+      // System domains are admin-added and trusted — never re-verify/downgrade them.
+      isSystemDomain: { $ne: true },
       $or: [
         { verificationStatus: { $ne: "verified" } },
         { verifiedAt: { $lt: oneDayAgo } },
