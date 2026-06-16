@@ -40,7 +40,14 @@ fi
 
 # ───────── Your Config ─────────
 DOMAIN="genuinesoftmart.store"
-VPS_IP="104.207.64.228"
+# Auto-detect this server's public IP (falls back to a manual value if detection
+# fails). Used for SPF + website-hosting A records shown in the domain guide.
+VPS_IP="$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null \
+  || curl -fsS --max-time 5 https://ifconfig.me 2>/dev/null \
+  || curl -fsS --max-time 5 https://icanhazip.com 2>/dev/null \
+  || true)"
+VPS_IP="$(echo "$VPS_IP" | tr -d '[:space:]')"
+[[ -z "$VPS_IP" ]] && VPS_IP="104.207.77.185"
 REPO_URL="https://github.com/Tajbir23/mailbox.git"
 APP_DIR="/var/www/mailbox-saas"
 BRANCH="main"
