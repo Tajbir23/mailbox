@@ -3,8 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import Domain from "@/lib/models/Domain";
+import { buildDomainDnsRecords } from "@/lib/dns-records";
 
-const HOSTING_IP = process.env.HOSTING_SERVER_IP || "209.74.81.85";
+const HOSTING_IP =
+  process.env.HOSTING_SERVER_IP || process.env.SERVER_PUBLIC_IP || "";
 
 export async function GET(request, { params }) {
   try {
@@ -24,27 +26,27 @@ export async function GET(request, { params }) {
       );
     }
 
+    // Comprehensive, grouped DNS guide (ownership + sending + hosting + PTR).
+    const setup = buildDomainDnsRecords(domain);
+
     return NextResponse.json({
       domain: domain.name,
       verificationStatus: domain.verificationStatus,
       websiteStatus: domain.websiteStatus,
-      hostingIp: HOSTING_IP,
-      records: [
-        {
-          type: "A",
-          host: "@",
-          value: HOSTING_IP,
-          ttl: 3600,
-          description: "Root domain → hosting server",
-        },
-        {
-          type: "A",
-          host: "www",
-          value: HOSTING_IP,
-          ttl: 3600,
-          description: "www subdomain → hosting server",
-        },
-      ],
+      approved: setup.approved,
+      hostingIp: setup.serverIp || HOSTING_IP,
+      mailHostname: setup.mailHostname,
+      dkimConfigured: setup.dkimConfigured,
+      // Full grouped guide with per-record purpose + where-to-add instructions.
+      setup,
+      // Backward-compatible flat A-record list (legacy clients).
+      records: (setup.groups.find((g) => g.id === "hosting")?.records || []).map((r) => ({
+        type: r.type,
+        host: r.host,
+        value: r.value,
+        ttl: r.ttl,
+        description: r.purpose,
+      })),
     });
   } catch (err) {
     console.error(err);

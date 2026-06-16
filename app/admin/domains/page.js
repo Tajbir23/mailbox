@@ -226,7 +226,7 @@ export default function AdminDomainsPage() {
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Type</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Owner</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Verified (DNS)</th>
-              <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Website Approved</th>
+              <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Approved</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
               <th className="px-6 py-4 text-left text-xs font-bold text-surface-500 uppercase tracking-wider">Created</th>
               <th className="px-6 py-4 text-right text-xs font-bold text-surface-500 uppercase tracking-wider">Actions</th>
@@ -313,14 +313,14 @@ export default function AdminDomainsPage() {
                         onClick={() => handleApproveWebsite(d._id, "approved")}
                         className="btn-primary !text-xs !py-1.5 !px-3 !rounded-lg !bg-green-600 hover:!bg-green-700"
                       >
-                        Approve Website
+                        Approve
                       </button>
                     ) : (
                       <button
                         onClick={() => handleApproveWebsite(d._id, "none")}
                         className="btn-primary !text-xs !py-1.5 !px-3 !rounded-lg !bg-amber-600 hover:!bg-amber-700"
                       >
-                        Revoke Website
+                        Revoke
                       </button>
                     )}
                     <button

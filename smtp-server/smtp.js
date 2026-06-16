@@ -37,6 +37,10 @@ const MONGODB_URI =
   process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/mailbox-saas";
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || "25", 10);
 const SOCKET_PORT = parseInt(process.env.SOCKET_PORT || "4000", 10);
+// Internal localhost-only emit bridge (Req 10.2). The Next.js send route POSTs
+// here to ask this process (the owner of `io`) to emit scoped real-time events.
+const INTERNAL_EMIT_PORT = parseInt(process.env.INTERNAL_EMIT_PORT || "4001", 10);
+const INTERNAL_EMIT_SECRET = process.env.INTERNAL_EMIT_SECRET || "";
 
 // ---- Mongoose schemas (CommonJS duplicates – keeps standalone) ----
 const MailboxSchema = new mongoose.Schema({
@@ -104,6 +108,61 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("[Socket.io] Client disconnected:", socket.id);
+  });
+});
+
+// ---- Internal emit bridge (localhost-only, secret-gated) — Req 10.2 ----
+// A separate HTTP listener (distinct from the Socket.io httpServer on SOCKET_PORT)
+// bound to 127.0.0.1. The Next.js send route cannot emit directly because `io`
+// lives in this process, so it POSTs here to request a scoped `email-status` emit.
+const internalEmitServer = http.createServer((req, res) => {
+  // Reject anything that isn't the one supported endpoint.
+  if (req.method !== "POST" || req.url !== "/emit/email-status") {
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found" }));
+    return;
+  }
+
+  // Shared-secret gate: header must match INTERNAL_EMIT_SECRET.
+  const provided = req.headers["x-internal-secret"];
+  if (!INTERNAL_EMIT_SECRET || provided !== INTERNAL_EMIT_SECRET) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unauthorized" }));
+    return;
+  }
+
+  let body = "";
+  req.on("data", (chunk) => {
+    body += chunk;
+  });
+  req.on("end", () => {
+    let parsed;
+    try {
+      parsed = JSON.parse(body || "{}");
+    } catch (err) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid JSON" }));
+      return;
+    }
+
+    const { mailboxId, userId, payload } = parsed;
+
+    // Emit to the mailbox room and the sending user's dashboard room.
+    if (mailboxId != null) {
+      io.to(String(mailboxId)).emit("email-status", payload);
+    }
+    if (userId != null) {
+      io.to(`dashboard-${userId}`).emit("email-status", payload);
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+  });
+
+  req.on("error", (err) => {
+    console.error("[EmitBridge] Request error:", err);
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Request error" }));
   });
 });
 
@@ -256,6 +315,23 @@ async function start() {
     console.log(`[SMTP] Server listening on port ${SMTP_PORT}`);
   });
 
+  // Start the internal emit bridge only when a secret is configured, so we never
+  // expose an unauthenticated emit endpoint (Req 10.2).
+  if (INTERNAL_EMIT_SECRET) {
+    internalEmitServer.listen(INTERNAL_EMIT_PORT, "127.0.0.1", () => {
+      console.log(
+        `[EmitBridge] Internal emit endpoint listening on 127.0.0.1:${INTERNAL_EMIT_PORT}`
+      );
+    });
+    internalEmitServer.on("error", (err) => {
+      console.error("[EmitBridge] Server error:", err);
+    });
+  } else {
+    console.warn(
+      "[EmitBridge] INTERNAL_EMIT_SECRET not set — internal emit endpoint disabled"
+    );
+  }
+
   smtpServer.on("error", (err) => {
     console.error("[SMTP] Server error:", err);
   });
@@ -287,6 +363,9 @@ async function start() {
     console.log("\n[SMTP] Shutting down gracefully…");
     smtpServer.close(() => console.log("[SMTP] Server closed"));
     httpServer.close(() => console.log("[Socket.io] Server closed"));
+    if (INTERNAL_EMIT_SECRET) {
+      internalEmitServer.close(() => console.log("[EmitBridge] Server closed"));
+    }
     await mongoose.connection.close();
     console.log("[MongoDB] Connection closed");
     process.exit(0);

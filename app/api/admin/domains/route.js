@@ -125,16 +125,16 @@ export async function PATCH(request) {
         if (body.websiteStatus === "approved") {
           await Notification.create({
             userId: currentDomain.ownerId,
-            title: "Website Hosting Approved! 🎉",
-            message: `Your request to host your website on ${currentDomain.name} has been approved! Open the setup guide to configure your DNS.`,
+            title: "Domain Approved! 🎉",
+            message: `Your domain ${currentDomain.name} has been approved. Open the setup guide to add your DNS records (email, sending & hosting) — every record comes with instructions.`,
             type: "success",
             link: `/dashboard/domains/${currentDomain._id}/hosting`
           });
         } else if (body.websiteStatus === "rejected") {
           await Notification.create({
             userId: currentDomain.ownerId,
-            title: "Website Hosting Rejected",
-            message: `Your request to host your website on ${currentDomain.name} was not approved by the admin.`,
+            title: "Domain Request Rejected",
+            message: `Your request to configure ${currentDomain.name} was not approved by the admin.`,
             type: "error",
             link: "/dashboard"
           });

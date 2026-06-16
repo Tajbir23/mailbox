@@ -6,6 +6,7 @@ import { useToast } from "@/components/Toast";
 import { makeMatcher } from "@/lib/search";
 import EmailTagModal from "@/components/EmailTagModal";
 import EmailCommentModal from "@/components/EmailCommentModal";
+import Compose from "@/components/Compose";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -88,6 +89,30 @@ function senderInitial(from) {
   return (name[0] || "?").toUpperCase();
 }
 
+// ── Reply/Forward prefill helpers ───────────────────────────────────────────
+// Client-side prefill only — the server authoritatively re-derives subject,
+// body, and attachments from the source email (Req 6.x / 7.x).
+
+// Add a "Re: " / "Fwd: " prefix once (case-insensitive), skipping if already present.
+function prefixSubject(subject, prefix) {
+  const s = (subject || "").trim();
+  if (!s) return prefix.trim();
+  const re = new RegExp(`^${prefix.trim()}`, "i");
+  return re.test(s) ? s : `${prefix}${s}`;
+}
+
+// Build a quoted body for forwarding, mirroring the conventional forward header.
+function buildForwardBody(email) {
+  const header =
+    "\n\n---------- Forwarded message ----------\n" +
+    `From: ${email.from || ""}\n` +
+    (email.to ? `To: ${email.to}\n` : "") +
+    `Subject: ${email.subject || "(No Subject)"}\n` +
+    (email.receivedAt ? `Date: ${new Date(email.receivedAt).toLocaleString()}\n` : "") +
+    "\n";
+  return header + (email.bodyText || "");
+}
+
 export default function InboxView({ mailboxId, isOwner = false, currentUserId = null }) {
   const [emails, setEmails] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -99,6 +124,8 @@ export default function InboxView({ mailboxId, isOwner = false, currentUserId = 
   const [tagManageEmail, setTagManageEmail] = useState(null);
   const [commentManageEmail, setCommentManageEmail] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeInitial, setComposeInitial] = useState(null);
   const socketRef = useRef(null);
   const pollRef = useRef(null);
   const toast = useToast();
@@ -178,11 +205,26 @@ export default function InboxView({ mailboxId, isOwner = false, currentUserId = 
       setTimeout(() => setNewEmailAlert(false), 3000);
     });
 
+    // Terminal send status for messages composed from this mailbox (Req 10.2).
+    socket.on("email-status", (status) => {
+      if (!status) return;
+      const subj = status.subject || "(No Subject)";
+      if (status.deliveryStatus === "sent") {
+        toast.success(`Message sent: ${subj}`);
+      } else if (status.deliveryStatus === "failed") {
+        toast.error(
+          status.failureReason
+            ? `Failed to send "${subj}": ${status.failureReason}`
+            : `Failed to send "${subj}"`
+        );
+      }
+    });
+
     return () => {
       socket.emit("leave-mailbox", mailboxId);
       socket.disconnect();
     };
-  }, [mailboxId]);
+  }, [mailboxId, toast]);
 
   // Fallback polling every 30s (in case Socket.io disconnects)
   useEffect(() => {
@@ -279,6 +321,43 @@ export default function InboxView({ mailboxId, isOwner = false, currentUserId = 
     );
   }, []);
 
+  // ── Compose / Reply / Forward entry points ────────────────────────────────
+  const openCompose = useCallback(() => {
+    setComposeInitial({ mode: "new" });
+    setComposeOpen(true);
+  }, []);
+
+  // Reply prefill: To = original sender address, subject "Re: …" (Req 6.1–6.3).
+  const openReply = useCallback((email) => {
+    if (!email) return;
+    const sender = parseSender(email.from).email;
+    setComposeInitial({
+      mode: "reply",
+      sourceEmailId: email._id,
+      to: sender ? [sender] : [],
+      subject: prefixSubject(email.subject, "Re: "),
+    });
+    setComposeOpen(true);
+  }, []);
+
+  // Forward prefill: subject "Fwd: …" + quoted body (Req 7.1–7.3). The server
+  // authoritatively re-derives body + attachment buffers from the source email.
+  const openForward = useCallback((email) => {
+    if (!email) return;
+    setComposeInitial({
+      mode: "forward",
+      sourceEmailId: email._id,
+      subject: prefixSubject(email.subject, "Fwd: "),
+      bodyText: buildForwardBody(email),
+    });
+    setComposeOpen(true);
+  }, []);
+
+  const closeCompose = useCallback(() => {
+    setComposeOpen(false);
+    setComposeInitial(null);
+  }, []);
+
   // Close per-row menu on outside click
   useEffect(() => {
     if (!openMenuId) return;
@@ -361,14 +440,24 @@ export default function InboxView({ mailboxId, isOwner = false, currentUserId = 
                     </span>
                   )}
                 </div>
-                {unreadCount > 0 && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-xs text-brand-600 hover:text-brand-700 font-semibold hover:bg-brand-50 px-2.5 py-1.5 rounded-lg transition-all"
+                    >
+                      Mark all read
+                    </button>
+                  )}
                   <button
-                    onClick={markAllAsRead}
-                    className="text-xs text-brand-600 hover:text-brand-700 font-semibold hover:bg-brand-50 px-2.5 py-1.5 rounded-lg transition-all"
+                    onClick={openCompose}
+                    title="Compose new message"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-600 hover:to-purple-700 px-2.5 py-1.5 rounded-lg shadow-brand-sm transition-all"
                   >
-                    Mark all read
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Compose
                   </button>
-                )}
+                </div>
               </>
             )}
           </div>
@@ -594,15 +683,33 @@ export default function InboxView({ mailboxId, isOwner = false, currentUserId = 
                       <h2 className="text-lg font-bold text-surface-900 leading-tight">
                         {selected.subject || "(No Subject)"}
                       </h2>
-                      <button
-                        onClick={() => deleteEmails(selected._id)}
-                        disabled={deleting}
-                        title={isOwner ? "Delete for everyone" : "Remove from your inbox"}
-                        className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" /></svg>
-                        {deleting ? (isOwner ? "Deleting…" : "Removing…") : isOwner ? "Delete" : "Remove"}
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => openReply(selected)}
+                          title="Reply"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-white hover:bg-brand-500 border border-brand-200 hover:border-brand-500 px-2.5 py-1.5 rounded-lg transition-all"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                          Reply
+                        </button>
+                        <button
+                          onClick={() => openForward(selected)}
+                          title="Forward"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-white hover:bg-brand-500 border border-brand-200 hover:border-brand-500 px-2.5 py-1.5 rounded-lg transition-all"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" /></svg>
+                          Forward
+                        </button>
+                        <button
+                          onClick={() => deleteEmails(selected._id)}
+                          disabled={deleting}
+                          title={isOwner ? "Delete for everyone" : "Remove from your inbox"}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" /></svg>
+                          {deleting ? (isOwner ? "Deleting…" : "Removing…") : isOwner ? "Delete" : "Remove"}
+                        </button>
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                       <span className="text-surface-700 break-all">
@@ -660,6 +767,13 @@ export default function InboxView({ mailboxId, isOwner = false, currentUserId = 
         isOwner={isOwner}
         onClose={() => setCommentManageEmail(null)}
         onUpdated={updateEmailLocally}
+      />
+
+      <Compose
+        mailboxId={mailboxId}
+        open={composeOpen}
+        onClose={closeCompose}
+        initial={composeInitial}
       />
     </div>
   );

@@ -224,6 +224,97 @@ if [[ -z "$SAML_CERT" || -z "$SAML_KEY" ]]; then
   log "SAML signing certificate generated"
 fi
 
+# ── 7a-3: Outbound email (send-email feature) — relay creds + internal emit secret ──
+# Relay credentials are EXTERNAL secrets we cannot auto-provision. They are
+# preserved across re-runs, and may be supplied on first run via shell env vars:
+#   SMTP_RELAY_HOST=... SMTP_RELAY_USER=... SMTP_RELAY_PASS=... bash setup.sh
+# The INTERNAL_EMIT_SECRET (used by the Next.js app <-> smtp-server emit bridge)
+# is auto-generated once and then reused so real-time send status keeps working.
+RELAY_HOST="${SMTP_RELAY_HOST:-}"
+RELAY_PORT="${SMTP_RELAY_PORT:-587}"
+RELAY_USER="${SMTP_RELAY_USER:-}"
+RELAY_PASS="${SMTP_RELAY_PASS:-}"
+RELAY_SECURE="${SMTP_RELAY_SECURE:-false}"
+EMIT_SECRET=""
+
+if [[ -f "$APP_DIR/.env.local" ]]; then
+  # Preserve previously-configured relay credentials unless overridden by env vars.
+  EX_RELAY_HOST=$(grep -E '^SMTP_RELAY_HOST=' "$APP_DIR/.env.local" | head -1 | cut -d= -f2- || true)
+  EX_RELAY_PORT=$(grep -E '^SMTP_RELAY_PORT=' "$APP_DIR/.env.local" | head -1 | cut -d= -f2- || true)
+  EX_RELAY_USER=$(grep -E '^SMTP_RELAY_USER=' "$APP_DIR/.env.local" | head -1 | cut -d= -f2- || true)
+  EX_RELAY_PASS=$(grep -E '^SMTP_RELAY_PASS=' "$APP_DIR/.env.local" | head -1 | cut -d= -f2- || true)
+  EX_RELAY_SECURE=$(grep -E '^SMTP_RELAY_SECURE=' "$APP_DIR/.env.local" | head -1 | cut -d= -f2- || true)
+  EX_EMIT_SECRET=$(grep -E '^INTERNAL_EMIT_SECRET=' "$APP_DIR/.env.local" | head -1 | cut -d= -f2- || true)
+
+  [[ -z "$RELAY_HOST" && -n "$EX_RELAY_HOST" ]] && RELAY_HOST="$EX_RELAY_HOST"
+  [[ -z "${SMTP_RELAY_PORT:-}" && -n "$EX_RELAY_PORT" ]] && RELAY_PORT="$EX_RELAY_PORT"
+  [[ -z "$RELAY_USER" && -n "$EX_RELAY_USER" ]] && RELAY_USER="$EX_RELAY_USER"
+  [[ -z "$RELAY_PASS" && -n "$EX_RELAY_PASS" ]] && RELAY_PASS="$EX_RELAY_PASS"
+  [[ -z "${SMTP_RELAY_SECURE:-}" && -n "$EX_RELAY_SECURE" ]] && RELAY_SECURE="$EX_RELAY_SECURE"
+  [[ -n "$EX_EMIT_SECRET" && "$EX_EMIT_SECRET" != replace-with-* ]] && EMIT_SECRET="$EX_EMIT_SECRET"
+fi
+
+if [[ -z "$EMIT_SECRET" ]]; then
+  EMIT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+  log "Generated INTERNAL_EMIT_SECRET for the real-time send bridge"
+else
+  log "Reusing existing INTERNAL_EMIT_SECRET"
+fi
+
+if [[ -n "$RELAY_HOST" ]]; then
+  log "SMTP relay configured ($RELAY_HOST:$RELAY_PORT) — outbound via relay"
+else
+  log "No SMTP relay set — outbound uses DIRECT-to-MX delivery (no relay needed)"
+fi
+
+# ── 7a-4: DKIM signing key (auto-generated, reused across re-runs) ──
+# DKIM lets receivers (Gmail, Outlook, …) cryptographically verify mail sent
+# from your domain — essential for inbox delivery, especially in direct mode.
+# We generate the key automatically; you only publish ONE DNS TXT record (printed
+# at the end). Outbound sending works even before you add it (may land in spam).
+DKIM_SELECTOR="mail"
+DKIM_PRIV=""
+
+if [[ -f "$APP_DIR/.env.local" ]]; then
+  EX_DKIM_PRIV=$(grep -E '^DKIM_PRIVATE_KEY=' "$APP_DIR/.env.local" | head -1 | cut -d= -f2- || true)
+  EX_DKIM_SELECTOR=$(grep -E '^DKIM_SELECTOR=' "$APP_DIR/.env.local" | head -1 | cut -d= -f2- || true)
+  if [[ -n "$EX_DKIM_PRIV" && "$EX_DKIM_PRIV" != replace-with-* ]]; then
+    DKIM_PRIV="$EX_DKIM_PRIV"
+    [[ -n "$EX_DKIM_SELECTOR" ]] && DKIM_SELECTOR="$EX_DKIM_SELECTOR"
+    log "Reusing existing DKIM signing key (selector: $DKIM_SELECTOR)"
+  fi
+fi
+
+if [[ -z "$DKIM_PRIV" ]]; then
+  info "Generating new DKIM signing key (2048-bit)..."
+  node -e "
+    const c = require('crypto');
+    const fs = require('fs');
+    const { privateKey } = c.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+    fs.writeFileSync('/tmp/dkim_priv.b64', Buffer.from(privateKey).toString('base64'));
+  "
+  DKIM_PRIV=$(cat /tmp/dkim_priv.b64)
+  rm -f /tmp/dkim_priv.b64
+  log "DKIM signing key generated (selector: $DKIM_SELECTOR)"
+fi
+
+# Derive the public key (single-line base64, no PEM armor) for the DNS TXT record.
+DKIM_PUB=$(node -e "
+  const c = require('crypto');
+  const pem = Buffer.from(process.argv[1], 'base64').toString('utf8');
+  const pub = c.createPublicKey(pem)
+    .export({ type: 'spki', format: 'pem' })
+    .toString()
+    .split('\n')
+    .filter((l) => l && !l.startsWith('-----'))
+    .join('');
+  console.log(pub);
+" "$DKIM_PRIV" 2>/dev/null || true)
+
 # ── 7b: Write base config (quoted heredoc — no variable expansion) ──
 cat > "$APP_DIR/.env.local" << 'EOF'
 # MongoDB Atlas
@@ -267,10 +358,56 @@ SAML_SIGNING_CERT=$SAML_CERT
 SAML_SIGNING_KEY=$SAML_KEY
 EOF
 
+# ── 7d: Append outbound email (send-email feature) config ──
+cat >> "$APP_DIR/.env.local" << EOF
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Outbound email (send-email feature)
+# ─────────────────────────────────────────────────────────────────────────────
+# Delivery mode:
+#   auto    = use the SMTP relay below if set, otherwise deliver direct-to-MX
+#   direct  = always deliver straight to the recipient's mail server (no relay)
+#   relay   = always use the SMTP relay below
+#   disabled= turn outbound sending off
+# Default "auto" means sending works out of the box with NO relay account.
+OUTBOUND_MODE=auto
+
+# Public IP of this server — used for SPF records and website-hosting A records
+# shown in each user's domain setup guide.
+SERVER_PUBLIC_IP=$VPS_IP
+HOSTING_SERVER_IP=$VPS_IP
+
+# Optional SMTP relay (only used in auto/relay mode). Leave blank to send direct.
+# Preserved across re-runs; may also be passed once via shell env vars.
+# Better deliverability if you have a provider (SES, Postmark, Mailgun, …).
+SMTP_RELAY_HOST=$RELAY_HOST
+SMTP_RELAY_PORT=$RELAY_PORT
+SMTP_RELAY_USER=$RELAY_USER
+SMTP_RELAY_PASS=$RELAY_PASS
+SMTP_RELAY_SECURE=$RELAY_SECURE
+
+# DKIM signing (auto-generated). Publish the printed DNS TXT record so Gmail/
+# Outlook trust your mail. The private key stays here; never share it.
+DKIM_DOMAIN=$DOMAIN
+DKIM_SELECTOR=$DKIM_SELECTOR
+DKIM_PRIVATE_KEY=$DKIM_PRIV
+
+# Internal emit bridge — the Next.js app POSTs here so the smtp-server process
+# (which owns Socket.io) can push real-time sent/failed status. Localhost only;
+# the secret is shared by both processes and auto-generated on first setup.
+INTERNAL_EMIT_SECRET=$EMIT_SECRET
+INTERNAL_EMIT_PORT=4001
+
+# Send rate limiting (per-user and per-mailbox, rolling window)
+SEND_RATE_USER_MAX=50
+SEND_RATE_MAILBOX_MAX=100
+SEND_RATE_WINDOW_MS=3600000
+EOF
+
 # Also copy to .env.production (Next.js reads this in production mode)
 cp "$APP_DIR/.env.local" "$APP_DIR/.env.production"
 
-log "Environment files created (incl. OIDC keys + SAML cert)"
+log "Environment files created (incl. OIDC keys + SAML cert + outbound email + DKIM)"
 
 # ══════════════════════════════════════════════
 #  STEP 8 – Install Dependencies & Build
@@ -493,6 +630,13 @@ else
   warn "Web: Port 3000 not yet listening (check pm2 logs mailbox-web)"
 fi
 
+# Check the internal emit bridge (localhost only — must NOT be publicly exposed)
+if ss -tlnp 2>/dev/null | grep -q "127.0.0.1:4001 "; then
+  log "Emit bridge: Port 4001 listening on localhost (real-time send status)"
+else
+  warn "Emit bridge: Port 4001 not listening (check pm2 logs mailbox-smtp)"
+fi
+
 # ══════════════════════════════════════════════
 #  DONE!
 # ══════════════════════════════════════════════
@@ -514,6 +658,24 @@ echo ""
 echo -e "  SAML SSO Provider (Enterprise SAML 2.0):"
 echo -e "     SAML metadata: ${CYAN}https://$DOMAIN/api/saml/metadata${NC}"
 echo -e "     SAML SPs:      ${CYAN}https://$DOMAIN/admin/saml-clients${NC}"
+echo ""
+echo -e "  Outbound Email (send from your mailboxes to anyone, e.g. Gmail):"
+if [[ -n "$RELAY_HOST" ]]; then
+echo -e "     Status:   ${GREEN}ENABLED${NC} via relay $RELAY_HOST:$RELAY_PORT (mode: auto)"
+else
+echo -e "     Status:   ${GREEN}ENABLED${NC} — DIRECT-to-MX delivery, no relay needed (mode: auto)"
+fi
+echo -e "     ${YELLOW}For INBOX delivery (not spam), add the 3 DNS records below.${NC}"
+echo ""
+echo -e "  ${CYAN}DNS records for email deliverability (add at your DNS provider):${NC}"
+echo -e "     ${YELLOW}1) SPF${NC}   TXT  @                  ->  ${GREEN}v=spf1 a mx ip4:$VPS_IP ~all${NC}"
+echo -e "     ${YELLOW}2) DMARC${NC} TXT  _dmarc             ->  ${GREEN}v=DMARC1; p=none; rua=mailto:admin@$DOMAIN${NC}"
+if [[ -n "$DKIM_PUB" ]]; then
+echo -e "     ${YELLOW}3) DKIM${NC}  TXT  ${DKIM_SELECTOR}._domainkey  ->  ${GREEN}v=DKIM1; k=rsa; p=$DKIM_PUB${NC}"
+else
+echo -e "     ${YELLOW}3) DKIM${NC}  TXT  ${DKIM_SELECTOR}._domainkey  ->  (key generated; value in .env.local)"
+fi
+echo -e "     ${YELLOW}+ PTR${NC} (reverse DNS): ask your VPS host to point $VPS_IP -> mail.$DOMAIN"
 echo ""
 echo -e "  Admin Login:"
 echo -e "     Email:    ${YELLOW}admin@mailbox.local${NC}"
