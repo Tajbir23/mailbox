@@ -80,7 +80,7 @@ echo ""
 info "Step 1/9: Updating system packages..."
 apt-get update -qq
 apt-get upgrade -y -qq
-apt-get install -y -qq curl git ufw debian-keyring debian-archive-keyring apt-transport-https ca-certificates gnupg
+apt-get install -y -qq curl git ufw debian-keyring debian-archive-keyring apt-transport-https ca-certificates gnupg dnsutils
 log "System updated"
 
 # ══════════════════════════════════════════════
@@ -603,6 +603,39 @@ else
   err "Caddy failed to start. Check: journalctl -u caddy -f"
   warn "Common fix: make sure no other service is using port 80/443"
   warn "Run: ss -tlnp | grep -E ':80 |:443 '"
+fi
+
+# ── 9d: Wait for DNS to point here, then trigger the SSL cert automatically ──
+# This removes the manual "restart caddy after DNS propagates" step. We poll the
+# domain's A record (up to ~3 min). The moment it matches THIS server's IP we
+# restart Caddy so it issues the Let's Encrypt cert immediately. If DNS isn't
+# pointed here yet, that's fine — Caddy keeps retrying on its own afterwards.
+if [[ -n "$VPS_IP" ]]; then
+  info "Waiting for DNS ($DOMAIN → $VPS_IP) so SSL can be issued automatically..."
+  dns_ok=false
+  for i in $(seq 1 18); do   # 18 × 10s ≈ 3 minutes
+    resolved="$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)"
+    if [[ -z "$resolved" ]]; then
+      resolved="$(dig +short A "$DOMAIN" @8.8.8.8 2>/dev/null | tail -1)"
+    fi
+    if [[ "$resolved" == "$VPS_IP" ]]; then
+      dns_ok=true
+      break
+    fi
+    sleep 10
+  done
+
+  if $dns_ok; then
+    log "DNS now points to this server — restarting Caddy to issue the SSL cert"
+    systemctl restart caddy
+    sleep 8
+    info "Caddy is obtaining the certificate (auto-retries until it succeeds)."
+  else
+    warn "DNS for $DOMAIN is not pointing to $VPS_IP yet."
+    warn "Set these A records, and SSL will activate automatically (no rerun needed):"
+    warn "   A  @    -> $VPS_IP"
+    warn "   A  www  -> $VPS_IP"
+  fi
 fi
 
 # ══════════════════════════════════════════════
