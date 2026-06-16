@@ -280,10 +280,31 @@ else
   log "Reusing existing INTERNAL_EMIT_SECRET"
 fi
 
+# Ignore bogus/localhost relay hosts. A stale "localhost"/127.0.0.1 here is what
+# causes "connect ECONNREFUSED ::1:587" — treat it as "no relay" so we go direct.
+case "$(echo "$RELAY_HOST" | tr '[:upper:]' '[:lower:]')" in
+  localhost|127.0.0.1|::1|0.0.0.0|"") RELAY_HOST="" ;;
+esac
+
+# ── Decide the outbound delivery mode automatically (no manual step) ──
+#   - relay configured  -> "relay"
+#   - else test outbound port 25 (direct-to-MX) and use "direct"
+OUTBOUND_MODE="${OUTBOUND_MODE:-}"
 if [[ -n "$RELAY_HOST" ]]; then
-  log "SMTP relay configured ($RELAY_HOST:$RELAY_PORT) — outbound via relay"
+  OUTBOUND_MODE="relay"
+  log "Outbound mode: RELAY ($RELAY_HOST:$RELAY_PORT)"
 else
-  log "No SMTP relay set — outbound uses DIRECT-to-MX delivery (no relay needed)"
+  info "Testing outbound port 25 (direct-to-MX) reachability..."
+  if timeout 8 bash -c 'exec 3<>/dev/tcp/gmail-smtp-in.l.google.com/25' 2>/dev/null; then
+    exec 3>&- 2>/dev/null || true
+    OUTBOUND_MODE="direct"
+    log "Outbound port 25 OPEN — DIRECT-to-MX sending enabled (no relay needed)"
+  else
+    OUTBOUND_MODE="direct"
+    warn "Outbound port 25 looks BLOCKED by your VPS provider."
+    warn "Direct sending may fail. Either ask the provider to open port 25, or"
+    warn "re-run with a relay:  SMTP_RELAY_HOST=... SMTP_RELAY_USER=... SMTP_RELAY_PASS=... bash scripts/vps-setup-genuinesoftmart.sh"
+  fi
 fi
 
 # ── 7a-4: DKIM signing key (auto-generated, reused across re-runs) ──
@@ -388,8 +409,9 @@ cat >> "$APP_DIR/.env.local" << EOF
 #   direct  = always deliver straight to the recipient's mail server (no relay)
 #   relay   = always use the SMTP relay below
 #   disabled= turn outbound sending off
-# Default "auto" means sending works out of the box with NO relay account.
-OUTBOUND_MODE=auto
+# Auto-selected by setup: "relay" if a relay is configured, else "direct"
+# (direct-to-MX, no relay account needed).
+OUTBOUND_MODE=$OUTBOUND_MODE
 
 # Public IP of this server — used for SPF records and website-hosting A records
 # shown in each user's domain setup guide.
