@@ -40,19 +40,31 @@ fi
 
 # ───────── Your Config ─────────
 DOMAIN="genuinesoftmart.store"
-# Auto-detect this server's public IP (falls back to a manual value if detection
-# fails). Used for SPF + website-hosting A records shown in the domain guide.
-VPS_IP="$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null \
-  || curl -fsS --max-time 5 https://ifconfig.me 2>/dev/null \
-  || curl -fsS --max-time 5 https://icanhazip.com 2>/dev/null \
-  || true)"
-VPS_IP="$(echo "$VPS_IP" | tr -d '[:space:]')"
-[[ -z "$VPS_IP" ]] && VPS_IP="104.207.77.185"
+# Auto-detect this server's public IP — no hardcoded value. Tries external
+# echo services first, then falls back to the host's own routable interface.
+# Used for SPF + website-hosting A records shown in the domain setup guide.
+detect_public_ip() {
+  local ip=""
+  for url in https://api.ipify.org https://ifconfig.me https://icanhazip.com https://ipinfo.io/ip; do
+    ip="$(curl -fsS --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')"
+    [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && { echo "$ip"; return; }
+  done
+  # Fallback: the IP used for outbound routing (works without internet echo svc).
+  ip="$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+' | head -1)"
+  [[ -n "$ip" ]] && { echo "$ip"; return; }
+  # Last resort: first non-loopback IPv4 on the host.
+  hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+\.' | grep -v '^127\.' | head -1
+}
+VPS_IP="$(detect_public_ip)"
 REPO_URL="https://github.com/Tajbir23/mailbox.git"
 APP_DIR="/var/www/mailbox-saas"
 BRANCH="main"
 CADDYFILE="/etc/caddy/Caddyfile"
 ACME_EMAIL="admin@genuinesoftmart.store"
+
+if [[ -z "$VPS_IP" ]]; then
+  warn "Could not auto-detect public IP — SPF/hosting A records in the guide may be blank."
+fi
 
 echo ""
 echo -e "${CYAN}════════════════════════════════════════════${NC}"
