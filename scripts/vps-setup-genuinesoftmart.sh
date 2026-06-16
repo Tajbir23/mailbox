@@ -142,7 +142,13 @@ if command -v ufw &>/dev/null; then
   ufw allow 443/tcp  >/dev/null 2>&1   # HTTPS
   ufw allow 443/udp  >/dev/null 2>&1   # HTTP/3 (QUIC)
   ufw allow 25/tcp   >/dev/null 2>&1   # SMTP (incoming email)
-  log "Firewall configured (22, 25, 80, 443)"
+  # Allow OUTBOUND SMTP so direct-to-MX sending works (local firewall side).
+  # NOTE: many providers also block outbound 25 at the network edge — that can
+  # only be lifted by the provider, not from inside the VPS.
+  ufw allow out 25/tcp  >/dev/null 2>&1
+  ufw allow out 587/tcp >/dev/null 2>&1
+  ufw allow out 465/tcp >/dev/null 2>&1
+  log "Firewall configured (in: 22, 25, 80, 443 | out: 25, 587, 465)"
 else
   warn "ufw not found, skipping firewall config"
 fi
